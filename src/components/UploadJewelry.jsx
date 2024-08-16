@@ -4,10 +4,16 @@ import { collection, addDoc, doc, getDoc, updateDoc } from "firebase/firestore";
 import { db, storage } from "../firebaseConfig";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { v4 as uuidv4 } from "uuid";
-import { Container, TextField, Button, Grid, Typography, Alert, Card, CardContent } from "@mui/material";
+import { InputText } from "primereact/inputtext";
+import { InputNumber } from "primereact/inputnumber";
+import { Button } from "primereact/button";
+import { Card } from "primereact/card";
+import { Toast } from "primereact/toast";
+import { FileUpload } from "primereact/fileupload";
+import "primeflex/primeflex.css"; // Asegúrate de tener PrimeFlex instalado
 
 const UploadJewelry = () => {
-  const { id } = useParams(); // Captura el ID de la URL
+  const { id } = useParams();
   const [formData, setFormData] = useState({
     name: "",
     type: "",
@@ -18,14 +24,13 @@ const UploadJewelry = () => {
   const [imageFile, setImageFile] = useState(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [editing, setEditing] = useState(false); // Estado para saber si estamos editando
-  const [imageUrl, setImageUrl] = useState(""); // Estado para la URL de la imagen cargada
+  const [editing, setEditing] = useState(false);
+  const [imageUrl, setImageUrl] = useState("");
 
-  // Efecto para cargar los datos si estamos en modo edición
   useEffect(() => {
     const fetchJoya = async () => {
       if (id) {
-        setEditing(true); // Estamos en modo edición
+        setEditing(true);
         const docRef = doc(db, "jewelry", id);
         const docSnap = await getDoc(docRef);
 
@@ -38,7 +43,7 @@ const UploadJewelry = () => {
             salePrice: data.salePrice || "",
             quantity: data.quantity || "",
           });
-          setImageUrl(data.image || ""); // Almacenar la URL de la imagen existente
+          setImageUrl(data.image || "");
         } else {
           setError("No se encontraron datos para esta joya.");
         }
@@ -48,7 +53,6 @@ const UploadJewelry = () => {
     fetchJoya();
   }, [id]);
 
-  // Manejar cambios en los campos del formulario
   const handleChange = (e) => {
     setFormData({
       ...formData,
@@ -56,29 +60,25 @@ const UploadJewelry = () => {
     });
   };
 
-  // Manejar la carga de la imagen
   const handleImageChange = (e) => {
-    setImageFile(e.target.files[0]);
+    setImageFile(e.files[0]);
   };
 
-  // Manejar el envío del formulario (creación o edición)
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setSuccess("");
 
     try {
-      let newImageUrl = imageUrl; // Si ya hay una URL de imagen, manténla
+      let newImageUrl = imageUrl;
 
-      // Si hay una nueva imagen seleccionada, súbela a Firebase Storage
       if (imageFile) {
         const imageRef = ref(storage, `images/${imageFile.name + uuidv4()}`);
         const snapshot = await uploadBytes(imageRef, imageFile);
-        newImageUrl = await getDownloadURL(snapshot.ref); // Obtén la nueva URL de la imagen
+        newImageUrl = await getDownloadURL(snapshot.ref);
       }
 
       if (editing) {
-        // Si estamos en modo edición, actualiza el documento existente
         const jewelryRef = doc(db, "jewelry", id);
         await updateDoc(jewelryRef, {
           name: formData.name,
@@ -90,7 +90,6 @@ const UploadJewelry = () => {
         });
         setSuccess("La joya fue actualizada con éxito.");
       } else {
-        // Si no estamos en modo edición, crea un nuevo documento
         await addDoc(collection(db, "jewelry"), {
           name: formData.name || "Sin nombre",
           type: formData.type || "Sin tipo",
@@ -102,7 +101,6 @@ const UploadJewelry = () => {
         setSuccess("La joya fue subida con éxito.");
       }
 
-      // Reiniciar el formulario
       setFormData({
         name: "",
         type: "",
@@ -118,104 +116,67 @@ const UploadJewelry = () => {
   };
 
   return (
-    <Grid
-      container
-      spacing={0}
-      direction="column"
-      alignItems="center"
-      justifyContent="center"
-      style={{ minHeight: "100vh", minWidth: "100vw" }}
-    >
-      <Grid item xs={12} sm={8} md={6}>
-        <Container>
-          <Card>
-            <CardContent>
-              <Typography variant="h4" align="center" gutterBottom>
-                {editing ? "Editar Joya" : "Subir Nueva Joya"}
-              </Typography>
-              {error && <Alert severity="error">{error}</Alert>}
-              {success && <Alert severity="success">{success}</Alert>}
-              <form onSubmit={handleSubmit}>
-                <Grid container spacing={3}>
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      label="Nombre del Producto"
-                      name="name"
-                      value={formData.name}
-                      onChange={handleChange}
-                      variant="outlined"
-                      required
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      label="Tipo"
-                      name="type"
-                      value={formData.type}
-                      onChange={handleChange}
-                      variant="outlined"
-                      required
-                    />
-                  </Grid>
+    <div className="flex justify-content-center align-items-center min-h-screen">
+      <Card title={editing ? "Editar Joya" : "Subir Nueva Joya"} className="p-4 shadow-2 w-full md:w-6 lg:w-4">
+        {error && <Toast severity="error" summary="Error" detail={error} life={3000} />}
+        {success && <Toast severity="success" summary="Éxito" detail={success} life={3000} />}
 
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      label="Precio de Compra"
-                      type="number"
-                      name="purchasePrice"
-                      value={formData.purchasePrice}
-                      onChange={handleChange}
-                      variant="outlined"
-                      required
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      label="Precio de Venta"
-                      type="number"
-                      name="salePrice"
-                      value={formData.salePrice}
-                      onChange={handleChange}
-                      variant="outlined"
-                      required
-                    />
-                  </Grid>
+        <form onSubmit={handleSubmit}>
+          <div className="p-fluid grid">
+            <div className="field col-12 md:col-6">
+              <label htmlFor="name">Nombre del Producto</label>
+              <InputText id="name" name="name" value={formData.name} onChange={handleChange} required />
+            </div>
 
-                  <Grid item xs={12} sm={6} style={{ marginBottom: "50px" }}>
-                    <TextField
-                      fullWidth
-                      label="Cantidad"
-                      type="number"
-                      name="quantity"
-                      value={formData.quantity}
-                      onChange={handleChange}
-                      variant="outlined"
-                      required
-                    />
-                  </Grid>
+            <div className="field col-12 md:col-6">
+              <label htmlFor="type">Tipo</label>
+              <InputText id="type" name="type" value={formData.type} onChange={handleChange} required />
+            </div>
 
-                  <Grid item xs={12} sm={6}>
-                    <Button variant="contained" component="label" fullWidth>
-                      {imageUrl ? "Cambiar Imagen" : "Subir Imagen"}
-                      <input type="file" hidden onChange={handleImageChange} accept="image/*" />
-                    </Button>
-                    {imageUrl && <img src={imageUrl} alt="Joya" width="100" style={{ marginTop: "10px", borderRadius: "8px" }} />}
-                  </Grid>
-                </Grid>
+            <div className="field col-12 md:col-6">
+              <label htmlFor="purchasePrice">Precio de Compra</label>
+              <InputNumber
+                id="purchasePrice"
+                name="purchasePrice"
+                value={formData.purchasePrice}
+                onValueChange={(e) => handleChange({ target: { name: "purchasePrice", value: e.value } })}
+                required
+              />
+            </div>
 
-                <Button variant="contained" color="primary" type="submit" className="mt-4" fullWidth>
-                  {editing ? "Actualizar Joya" : "Subir Joya"}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-        </Container>
-      </Grid>
-    </Grid>
+            <div className="field col-12 md:col-6">
+              <label htmlFor="salePrice">Precio de Venta</label>
+              <InputNumber
+                id="salePrice"
+                name="salePrice"
+                value={formData.salePrice}
+                onValueChange={(e) => handleChange({ target: { name: "salePrice", value: e.value } })}
+                required
+              />
+            </div>
+
+            <div className="field col-12 md:col-6">
+              <label htmlFor="quantity">Cantidad</label>
+              <InputNumber
+                id="quantity"
+                name="quantity"
+                value={formData.quantity}
+                onValueChange={(e) => handleChange({ target: { name: "quantity", value: e.value } })}
+                required
+              />
+            </div>
+
+            <div className="field col-12 md:col-6">
+              <label htmlFor="image">Imagen</label>
+              <FileUpload name="image" accept="image/*" customUpload auto chooseLabel="Subir Imagen" onSelect={handleImageChange} />
+              {imageUrl && <img src={imageUrl} alt="Joya" width="100" className="mt-2" style={{ borderRadius: "8px" }} />}
+            </div>
+          </div>
+
+          <Button label={editing ? "Actualizar Joya" : "Subir Joya"} icon="pi pi-check" className="w-full" type="submit" />
+        </form>
+      </Card>
+    </div>
   );
 };
 

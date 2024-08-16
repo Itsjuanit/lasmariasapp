@@ -2,34 +2,18 @@ import React, { useState, useEffect } from "react";
 import { collection, getDocs, deleteDoc, doc, updateDoc, addDoc } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import { useNavigate } from "react-router-dom";
-import {
-  Container,
-  Typography,
-  Button,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  Grid,
-  IconButton,
-  TableFooter,
-  TablePagination,
-  Card,
-  CardContent,
-  Modal,
-  Box,
-  TextField,
-} from "@mui/material";
-import EditIcon from "@mui/icons-material/Edit";
-import DeleteIcon from "@mui/icons-material/Delete";
+import { DataTable } from "primereact/datatable";
+import { Column } from "primereact/column";
+import { Button } from "primereact/button";
+import { Dialog } from "primereact/dialog";
+import { InputText } from "primereact/inputtext";
+import { InputNumber } from "primereact/inputnumber";
+import { Toast } from "primereact/toast";
+import { Toolbar } from "primereact/toolbar";
+import { ConfirmDialog, confirmDialog } from "primereact/confirmdialog";
 
 const Dashboard = () => {
   const [joyas, setJoyas] = useState([]);
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(5);
   const [openModal, setOpenModal] = useState(false);
   const [selectedJoya, setSelectedJoya] = useState(null);
   const [buyerName, setBuyerName] = useState(""); // Nombre del comprador
@@ -87,33 +71,29 @@ const Dashboard = () => {
         const jewelryRef = doc(db, "jewelry", selectedJoya.id);
         const newQuantity = selectedJoya.quantity - 1;
 
-        // Mantener el precio de venta si el campo está vacío
         const finalSalePrice = newSalePrice ? parseFloat(newSalePrice) : selectedJoya.salePrice;
 
         if (newQuantity >= 0) {
-          // Actualiza la cantidad en stock
           await updateDoc(jewelryRef, { quantity: newQuantity });
 
-          // Registrar la venta en una colección separada llamada "sales"
           await addDoc(collection(db, "sales"), {
             name: selectedJoya.name,
             type: selectedJoya.type,
             purchasePrice: selectedJoya.purchasePrice,
             salePrice: finalSalePrice,
-            buyerName: buyerName || "Desconocido", // Si el nombre del comprador está vacío, asignar "Desconocido"
-            purchaseTerms: purchaseTerms || "Sin plazos", // Si el campo de plazos está vacío, asignar "Sin plazos"
-            sold: 1, // Siempre será 1 por cada venta individual
-            saleDate: new Date(), // Fecha y hora de la venta
-            idJoya: selectedJoya.id, // ID de la joya original
+            buyerName: buyerName || "Desconocido",
+            purchaseTerms: purchaseTerms || "Sin plazos",
+            sold: 1,
+            saleDate: new Date(),
+            idJoya: selectedJoya.id,
           });
 
-          // Actualiza el estado local de las joyas
           setJoyas(joyas.map((item) => (item.id === selectedJoya.id ? { ...item, quantity: newQuantity } : item)));
         } else {
           console.error("Stock insuficiente");
         }
 
-        handleCloseModal(); // Cierra el modal después de confirmar
+        handleCloseModal();
       } catch (error) {
         console.error("Error al registrar la venta:", error.message);
       }
@@ -130,161 +110,76 @@ const Dashboard = () => {
     navigate("/upload");
   };
 
-  // Función para manejar cambio de página
-  const handleChangePage = (event, newPage) => {
-    setPage(newPage);
-  };
-
-  // Función para manejar cambio en el número de filas por página
-  const handleChangeRowsPerPage = (event) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
-    setPage(0);
-  };
-
-  // Estilos del modal
-  const style = {
-    position: "absolute",
-    top: "50%",
-    left: "50%",
-    transform: "translate(-50%, -50%)",
-    width: 400,
-    bgcolor: "background.paper",
-    border: "2px solid #000",
-    boxShadow: 24,
-    p: 4,
+  // Columnas de la tabla
+  const actionBodyTemplate = (rowData) => {
+    return (
+      <>
+        <Button icon="pi pi-pencil" className="p-button-rounded p-button-warning mr-2" onClick={() => handleEdit(rowData.id)} />
+        <Button
+          icon="pi pi-trash"
+          className="p-button-rounded p-button-danger mr-2"
+          onClick={() =>
+            confirmDialog({
+              message: `¿Estás seguro de que quieres eliminar "${rowData.name}"?`,
+              header: "Confirmar",
+              icon: "pi pi-exclamation-triangle",
+              accept: () => handleDelete(rowData.id),
+            })
+          }
+        />
+        <Button
+          label="Vender"
+          icon="pi pi-shopping-cart"
+          className="p-button-rounded p-button-success"
+          onClick={() => handleOpenModal(rowData)}
+          disabled={rowData.quantity <= 0}
+        />
+      </>
+    );
   };
 
   return (
-    <Grid
-      container
-      direction="column"
-      alignItems="center"
-      justifyContent="center"
-      style={{ minHeight: "80vh", width: "90vw", marginTop: "100px" }}
-    >
-      <Card>
-        <CardContent>
-          <Grid container spacing={2} className="mt-4 mb-4">
-            <Grid item>
-              <Typography variant="h4">Inventario de Joyas</Typography>
-            </Grid>
-            <Grid item>
-              <Button variant="contained" color="primary" onClick={handleAddJoya}>
-                Agregar Joya
-              </Button>
-            </Grid>
-          </Grid>
+    <div className="container mx-auto mt-6">
+      <Toolbar className="mb-4" left={<Button label="Agregar Joya" icon="pi pi-plus" onClick={handleAddJoya} />} />
 
-          <TableContainer component={Paper}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Nombre</TableCell>
-                  <TableCell>Tipo</TableCell>
-                  <TableCell>Precio de Compra</TableCell>
-                  <TableCell>Precio de Venta</TableCell>
-                  <TableCell>Ganancia</TableCell>
-                  <TableCell>Cantidad</TableCell>
-                  <TableCell>Imagen</TableCell>
-                  <TableCell>Acciones</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {(rowsPerPage > 0 ? joyas.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage) : joyas).map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell>{item.name || "Sin nombre"}</TableCell>
-                    <TableCell>{item.type || "Sin tipo"}</TableCell>
-                    <TableCell>{item.purchasePrice || 0}</TableCell>
-                    <TableCell>{item.salePrice || 0}</TableCell>
-                    <TableCell>{isNaN(item.salePrice - item.purchasePrice) ? 0 : item.salePrice - item.purchasePrice}</TableCell>
-                    <TableCell>{item.quantity || 0}</TableCell>
-                    <TableCell>
-                      {item.image ? (
-                        <img src={item.image} alt={item.name || "Imagen"} width="50" style={{ borderRadius: "8px" }} />
-                      ) : (
-                        "Sin imagen"
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <IconButton color="warning" onClick={() => handleEdit(item.id)}>
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton color="error" onClick={() => handleDelete(item.id)}>
-                        <DeleteIcon />
-                      </IconButton>
-                      <Button variant="contained" color="secondary" onClick={() => handleOpenModal(item)} disabled={item.quantity <= 0}>
-                        Vender
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+      <DataTable value={joyas} paginator rows={5} responsiveLayout="scroll" emptyMessage="No se encontraron joyas.">
+        <Column field="name" header="Nombre"></Column>
+        <Column field="type" header="Tipo"></Column>
+        <Column field="purchasePrice" header="Precio de Compra"></Column>
+        <Column field="salePrice" header="Precio de Venta"></Column>
+        <Column field="quantity" header="Cantidad"></Column>
+        <Column
+          field="image"
+          header="Imagen"
+          body={(data) =>
+            data.image ? <img src={data.image} alt={data.name} style={{ width: "50px", borderRadius: "8px" }} /> : "Sin imagen"
+          }
+        ></Column>
+        <Column body={actionBodyTemplate} header="Acciones"></Column>
+      </DataTable>
 
-                {rowsPerPage > 0 && joyas.length > 0 && (page + 1) * rowsPerPage > joyas.length && (
-                  <TableRow style={{ height: 53 * ((page + 1) * rowsPerPage - joyas.length) }}>
-                    <TableCell colSpan={10} />
-                  </TableRow>
-                )}
-              </TableBody>
-              <TableFooter>
-                <TableRow>
-                  <TablePagination
-                    rowsPerPageOptions={[5, 10, 25]}
-                    count={joyas.length}
-                    rowsPerPage={rowsPerPage}
-                    page={page}
-                    onPageChange={handleChangePage}
-                    onRowsPerPageChange={handleChangeRowsPerPage}
-                  />
-                </TableRow>
-              </TableFooter>
-            </Table>
-          </TableContainer>
-        </CardContent>
-      </Card>
+      {/* Modal de confirmación de venta */}
+      <Dialog visible={openModal} style={{ width: "450px" }} header="Confirmar Venta" modal className="p-fluid" onHide={handleCloseModal}>
+        <div className="p-field">
+          <label htmlFor="buyerName">Nombre del Comprador</label>
+          <InputText id="buyerName" value={buyerName} onChange={(e) => setBuyerName(e.target.value)} />
+        </div>
+        <div className="p-field">
+          <label htmlFor="salePrice">Nuevo Precio de Venta</label>
+          <InputNumber id="salePrice" value={newSalePrice} onChange={(e) => setNewSalePrice(e.value)} />
+        </div>
+        <div className="p-field">
+          <label htmlFor="purchaseTerms">Plazos (opcional)</label>
+          <InputText id="purchaseTerms" value={purchaseTerms} onChange={(e) => setPurchaseTerms(e.target.value)} />
+        </div>
+        <div className="p-field">
+          <Button label="Cancelar" icon="pi pi-times" className="p-button-text" onClick={handleCloseModal} />
+          <Button label="Confirmar" icon="pi pi-check" className="p-button-text" onClick={handleConfirmSale} />
+        </div>
+      </Dialog>
 
-      {/* Modal de confirmación */}
-      <Modal open={openModal} onClose={handleCloseModal} aria-labelledby="modal-title" aria-describedby="modal-description">
-        <Box sx={style}>
-          <Typography id="modal-title" variant="h6" component="h2">
-            Confirmar Venta
-          </Typography>
-          <TextField
-            label="Nombre del Comprador"
-            fullWidth
-            value={buyerName}
-            onChange={(e) => setBuyerName(e.target.value)}
-            sx={{ mt: 2 }}
-          />
-          <TextField
-            label="Nuevo Precio de Venta"
-            fullWidth
-            value={newSalePrice}
-            onChange={(e) => setNewSalePrice(e.target.value)}
-            sx={{ mt: 2 }}
-            type="number"
-          />
-          <TextField
-            label="Plazos (opcional)"
-            fullWidth
-            value={purchaseTerms}
-            onChange={(e) => setPurchaseTerms(e.target.value)}
-            sx={{ mt: 2 }}
-          />
-          <Grid container justifyContent="flex-end" spacing={2} sx={{ mt: 4 }}>
-            <Grid item>
-              <Button onClick={handleCloseModal} variant="contained" color="primary">
-                Cancelar
-              </Button>
-            </Grid>
-            <Grid item>
-              <Button onClick={handleConfirmSale} variant="contained" color="secondary">
-                Confirmar
-              </Button>
-            </Grid>
-          </Grid>
-        </Box>
-      </Modal>
-    </Grid>
+      <ConfirmDialog />
+    </div>
   );
 };
 

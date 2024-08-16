@@ -1,25 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../firebaseConfig";
-import {
-  Container,
-  Typography,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  Card,
-  CardContent,
-  Grid,
-  TextField,
-  Button,
-} from "@mui/material";
-import { DatePicker } from "@mui/x-date-pickers/DatePicker";
-import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
-import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
+import { DataTable } from "primereact/datatable";
+import { Column } from "primereact/column";
+import { Card } from "primereact/card";
+import { Button } from "primereact/button";
+import { Calendar } from "primereact/calendar";
+import { Divider } from "primereact/divider";
 
 const Profits = () => {
   const [sales, setSales] = useState([]);
@@ -28,7 +15,6 @@ const Profits = () => {
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
 
-  // Función para obtener las ventas de la base de datos
   useEffect(() => {
     const fetchSales = async () => {
       try {
@@ -56,7 +42,6 @@ const Profits = () => {
     fetchSales();
   }, []);
 
-  // Función para filtrar ventas por fecha
   const filterSalesByDate = () => {
     if (startDate && endDate) {
       const filtered = sales.filter((sale) => sale.saleDate >= startDate && sale.saleDate <= endDate);
@@ -67,108 +52,51 @@ const Profits = () => {
   };
 
   return (
-    <LocalizationProvider dateAdapter={AdapterDateFns}>
-      <Container style={{ minHeight: "80vh", width: "90vw", marginTop: "100px" }}>
-        <Grid container spacing={2}>
-          {/* Columna izquierda: Tabla de ventas */}
-          <Grid item xs={12} md={8}>
-            <Card>
-              <CardContent>
-                <Typography variant="h4" gutterBottom>
-                  Ganancias por Joyas Vendidas
-                </Typography>
-                {/* DatePickers para seleccionar el rango de fechas */}
-                <Grid container spacing={2} sx={{ mb: 3 }}>
-                  <Grid item xs={6}>
-                    <DatePicker
-                      label="Fecha Inicio"
-                      value={startDate}
-                      onChange={(newValue) => setStartDate(newValue)}
-                      slots={{ textField: (props) => <TextField {...props} fullWidth /> }}
-                    />
-                  </Grid>
-                  <Grid item xs={6}>
-                    <DatePicker
-                      label="Fecha Fin"
-                      value={endDate}
-                      onChange={(newValue) => setEndDate(newValue)}
-                      slots={{ textField: (props) => <TextField {...props} fullWidth /> }}
-                    />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <Button variant="contained" onClick={filterSalesByDate} fullWidth>
-                      Buscar
-                    </Button>
-                  </Grid>
-                </Grid>
+    <div className="container mx-auto mt-6">
+      <div className="p-grid">
+        {/* Columna izquierda: Tabla de ventas */}
+        <div className="p-col-12 p-md-8">
+          <Card>
+            <h4 className="text-center">Ganancias por Joyas Vendidas</h4>
+            <Divider />
 
-                <TableContainer component={Paper}>
-                  <Table>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Nombre</TableCell>
-                        <TableCell>Comprador</TableCell>
-                        <TableCell>Precio de Compra</TableCell>
-                        <TableCell>Precio de Venta</TableCell>
-                        <TableCell>Ganancia</TableCell>
-                        <TableCell>Fecha de Venta</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {(filteredSales.length > 0 ? filteredSales : sales).length > 0 ? (
-                        (filteredSales.length > 0 ? filteredSales : sales).map((sale) => (
-                          <TableRow key={sale.id}>
-                            <TableCell>{sale.name || "Sin nombre"}</TableCell>
-                            <TableCell>{sale.buyerName || "Desconocido"}</TableCell>
-                            <TableCell>{sale.purchasePrice || 0}</TableCell>
-                            <TableCell>{sale.salePrice || 0}</TableCell>
-                            <TableCell>{isNaN(sale.salePrice - sale.purchasePrice) ? 0 : sale.salePrice - sale.purchasePrice}</TableCell>
-                            <TableCell>
-                              {sale.saleDate.toLocaleDateString()} {sale.saleDate.toLocaleTimeString()}
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={6} align="center">
-                            No hay ventas en el rango seleccionado.
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </CardContent>
-            </Card>
-          </Grid>
+            {/* DatePickers para seleccionar el rango de fechas */}
+            <div className="p-grid p-align-center p-justify-between p-mb-4">
+              <div className="p-col-12 p-md-6">
+                <Calendar value={startDate} onChange={(e) => setStartDate(e.value)} placeholder="Fecha Inicio" className="w-full" />
+              </div>
+              <div className="p-col-12 p-md-6">
+                <Calendar value={endDate} onChange={(e) => setEndDate(e.value)} placeholder="Fecha Fin" className="w-full" />
+              </div>
+            </div>
 
-          {/* Columna derecha: Tabla de ganancias mensuales */}
-          <Grid item xs={12} md={4}>
-            <Card>
-              <CardContent>
-                <Typography variant="h4" gutterBottom>
-                  Ganancia del Mes
-                </Typography>
-                <TableContainer component={Paper}>
-                  <Table>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Total Ganado en el Mes</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      <TableRow>
-                        <TableCell>${monthlyProfit.toFixed(2)}</TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      </Container>
-    </LocalizationProvider>
+            <Button label="Buscar" onClick={filterSalesByDate} className="p-mb-4 w-full" />
+
+            <DataTable value={filteredSales.length > 0 ? filteredSales : sales} responsiveLayout="scroll">
+              <Column field="name" header="Nombre"></Column>
+              <Column field="buyerName" header="Comprador"></Column>
+              <Column field="purchasePrice" header="Precio de Compra"></Column>
+              <Column field="salePrice" header="Precio de Venta"></Column>
+              <Column field="profit" header="Ganancia" body={(data) => data.salePrice - data.purchasePrice}></Column>
+              <Column
+                field="saleDate"
+                header="Fecha de Venta"
+                body={(data) => `${data.saleDate.toLocaleDateString()} ${data.saleDate.toLocaleTimeString()}`}
+              ></Column>
+            </DataTable>
+          </Card>
+        </div>
+
+        {/* Columna derecha: Ganancia mensual */}
+        <div className="p-col-12 p-md-4">
+          <Card>
+            <h4 className="text-center">Ganancia del Mes</h4>
+            <Divider />
+            <div className="text-center text-xl">${monthlyProfit.toFixed(2)}</div>
+          </Card>
+        </div>
+      </div>
+    </div>
   );
 };
 
