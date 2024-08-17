@@ -38,6 +38,14 @@ function App() {
               }
             />
             <Route
+              path="/edit/:id"
+              element={
+                <ProtectedRoute>
+                  <UploadJewelry />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/upload"
               element={
                 <ProtectedRoute>
@@ -45,6 +53,7 @@ function App() {
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/profits"
               element={
