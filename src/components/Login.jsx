@@ -1,229 +1,92 @@
-import React, { useState, useEffect, useRef } from "react";
-import { useParams } from "react-router-dom";
-import { collection, addDoc, doc, getDoc, updateDoc } from "firebase/firestore";
-import { db, storage } from "../firebaseConfig";
-import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
-import { v4 as uuidv4 } from "uuid";
+import React, { useState } from "react";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth } from "../firebaseConfig";
+import { useNavigate } from "react-router-dom";
 import { InputText } from "primereact/inputtext";
-import { InputNumber } from "primereact/inputnumber";
 import { Button } from "primereact/button";
 import { Card } from "primereact/card";
 import { Toast } from "primereact/toast";
-import { FileUpload } from "primereact/fileupload";
-import { ProgressBar } from "primereact/progressbar";
-import "primeflex/primeflex.css";
 
-const UploadJewelry = () => {
-  const { id } = useParams();
-  const [formData, setFormData] = useState({
-    name: "",
-    type: "",
-    purchasePrice: "",
-    salePrice: "",
-    quantity: "",
-  });
-  const [imageFile, setImageFile] = useState(null);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-  const [editing, setEditing] = useState(false);
-  const [imageUrl, setImageUrl] = useState("");
-  const [uploadProgress, setUploadProgress] = useState(0); // Estado para el progreso de carga
+const Notification = ({ severity, message }) => {
+  return <div className={`notification ${severity}`}>{message}</div>;
+};
 
-  const toast = useRef(null);
-  const fileUploadRef = useRef(null); // Referencia para FileUpload
+const Login = () => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [showPassword, setShowPassword] = useState(false); // Estado para mostrar/ocultar la contraseña
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    const fetchJoya = async () => {
-      if (id) {
-        setEditing(true);
-        const docRef = doc(db, "jewelry", id);
-        const docSnap = await getDoc(docRef);
-
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setFormData({
-            name: data.name || "",
-            type: data.type || "",
-            purchasePrice: data.purchasePrice || "",
-            salePrice: data.salePrice || "",
-            quantity: data.quantity || "",
-          });
-          setImageUrl(data.image || "");
-        } else {
-          setError("No se encontraron datos para esta joya.");
-        }
-      }
-    };
-
-    fetchJoya();
-  }, [id]);
-
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+  const showNotification = (severity, message) => {
+    Toast.current.show({ severity, summary: "Notificación", detail: message });
   };
 
-  const handleImageChange = (e) => {
-    setImageFile(e.files[0]);
+  const toggleShowPassword = () => {
+    setShowPassword(!showPassword); // Alternar visibilidad de la contraseña
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError("");
-    setSuccess("");
-    setUploadProgress(0); // Reiniciar progreso de carga
+    setErrorMessage("");
 
     try {
-      let newImageUrl = imageUrl;
-
-      if (imageFile) {
-        // Subir imagen a Firebase Storage con progreso
-        const imageRef = ref(storage, `images/${imageFile.name + uuidv4()}`);
-        const uploadTask = uploadBytesResumable(imageRef, imageFile);
-
-        uploadTask.on(
-          "state_changed",
-          (snapshot) => {
-            // Actualizar progreso de carga
-            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            setUploadProgress(progress);
-          },
-          (error) => {
-            setError("Error al subir la imagen: " + error.message);
-            toast.current.show({ severity: "error", summary: "Error", detail: error.message, life: 3000 });
-          },
-          async () => {
-            // Obtener URL de la imagen subida
-            newImageUrl = await getDownloadURL(uploadTask.snapshot.ref);
-            setUploadProgress(100); // Completar la barra de progreso
-            toast.current.show({ severity: "success", summary: "Éxito", detail: "Imagen subida con éxito", life: 3000 });
-          }
-        );
-      }
-
-      // Actualizar o añadir el documento de la joya
-      if (editing) {
-        const jewelryRef = doc(db, "jewelry", id);
-        await updateDoc(jewelryRef, {
-          name: formData.name,
-          type: formData.type,
-          purchasePrice: parseFloat(formData.purchasePrice),
-          salePrice: parseFloat(formData.salePrice),
-          quantity: parseInt(formData.quantity, 10),
-          image: newImageUrl,
-        });
-        setSuccess("La joya fue actualizada con éxito.");
-        toast.current.show({ severity: "success", summary: "Éxito", detail: "La joya fue actualizada con éxito", life: 3000 });
-      } else {
-        await addDoc(collection(db, "jewelry"), {
-          name: formData.name || "Sin nombre",
-          type: formData.type || "Sin tipo",
-          purchasePrice: parseFloat(formData.purchasePrice) || 0,
-          salePrice: parseFloat(formData.salePrice) || 0,
-          quantity: parseInt(formData.quantity, 10) || 0,
-          image: newImageUrl || "URL de imagen por defecto",
-        });
-        setSuccess("La joya fue subida con éxito.");
-        toast.current.show({ severity: "success", summary: "Éxito", detail: "La joya fue subida con éxito", life: 3000 });
-      }
-
-      // Reiniciar formulario
-      setFormData({
-        name: "",
-        type: "",
-        purchasePrice: "",
-        salePrice: "",
-        quantity: "",
-      });
-      setImageFile(null); // Limpiar estado de imagen
-      setImageUrl(""); // Limpiar URL de la imagen
-      setUploadProgress(0); // Reiniciar progreso de carga
-
-      // Limpiar FileUpload
-      if (fileUploadRef.current) {
-        fileUploadRef.current.clear(); // Limpiar el componente de subir archivo
-      }
+      await signInWithEmailAndPassword(auth, email, password);
+      showNotification("success", "¡Inicio de sesión exitoso! Redirigiendo...");
+      setTimeout(() => {
+        navigate("/dashboard");
+      }, 1500);
     } catch (error) {
-      setError("Error al procesar la joya: " + error.message);
-      toast.current.show({ severity: "error", summary: "Error", detail: error.message, life: 3000 });
+      setErrorMessage("Credenciales incorrectas. Por favor, verifica tu email y contraseña.");
+      showNotification("error", errorMessage);
     }
   };
 
   return (
-    <div className="flex justify-content-center align-items-center min-h-screen">
-      <Card title={editing ? "Editar Joya" : "Subir Nueva Joya"} className="p-4 shadow-2 w-full md:w-6 lg:w-4">
-        {/* Componente Toast */}
-        <Toast ref={toast} />
+    <div className="flex justify-content-center align-items-center min-h-screen bg-gray-100">
+      <Card className="p-4 shadow-2 w-full md:w-6 lg:w-4">
+        <h2 className="text-center text-2xl font-semibold mb-4">Iniciar Sesión</h2>
+
+        {errorMessage && <Notification severity="error" message={errorMessage} />}
 
         <form onSubmit={handleSubmit}>
-          <div className="p-fluid grid">
-            <div className="field col-12 md:col-6">
-              <label htmlFor="name">Nombre del Producto</label>
-              <InputText id="name" name="name" value={formData.name} onChange={handleChange} required />
-            </div>
+          <div className="field mb-4">
+            <label htmlFor="email" className="block text-gray-700">
+              Email
+            </label>
+            <InputText id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full" required />
+          </div>
 
-            <div className="field col-12 md:col-6">
-              <label htmlFor="type">Tipo</label>
-              <InputText id="type" name="type" value={formData.type} onChange={handleChange} required />
-            </div>
-
-            <div className="field col-12 md:col-6">
-              <label htmlFor="purchasePrice">Precio de Compra</label>
-              <InputNumber
-                id="purchasePrice"
-                name="purchasePrice"
-                value={formData.purchasePrice}
-                onValueChange={(e) => handleChange({ target: { name: "purchasePrice", value: e.value } })}
+          <div className="field mb-4">
+            <label htmlFor="password" className="block text-gray-700">
+              Contraseña
+            </label>
+            {/* Contenedor para el input de contraseña y el botón de ojo */}
+            <div className="relative">
+              <InputText
+                id="password"
+                type={showPassword ? "text" : "password"} // Cambiar entre password y text
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full"
                 required
               />
-            </div>
-
-            <div className="field col-12 md:col-6">
-              <label htmlFor="salePrice">Precio de Venta</label>
-              <InputNumber
-                id="salePrice"
-                name="salePrice"
-                value={formData.salePrice}
-                onValueChange={(e) => handleChange({ target: { name: "salePrice", value: e.value } })}
-                required
+              {/* Botón para mostrar/ocultar la contraseña */}
+              <Button
+                icon={showPassword ? "pi pi-eye-slash" : "pi pi-eye"} // Icono de ojo
+                className="p-button-text absolute right-0 top-0 h-full" // Estilos para posicionar el botón
+                onClick={toggleShowPassword}
+                type="button" // Evitar submit
               />
-            </div>
-
-            <div className="field col-12 md:col-6">
-              <label htmlFor="quantity">Cantidad</label>
-              <InputNumber
-                id="quantity"
-                name="quantity"
-                value={formData.quantity}
-                onValueChange={(e) => handleChange({ target: { name: "quantity", value: e.value } })}
-                required
-              />
-            </div>
-
-            {/* Parte de Subir Imagen debajo de la cantidad */}
-            <div className="field col-12">
-              <label htmlFor="image">Imagen</label>
-              <FileUpload
-                name="image"
-                accept="image/*"
-                customUpload
-                auto
-                chooseLabel="Subir Imagen"
-                onSelect={handleImageChange}
-                ref={fileUploadRef} // Referencia al FileUpload
-              />
-              {imageUrl && <img src={imageUrl} alt="Joya" width="100" className="mt-2" style={{ borderRadius: "8px" }} />}
-              {uploadProgress > 0 && <ProgressBar value={uploadProgress} className="mt-2" />}
             </div>
           </div>
 
-          <Button label={editing ? "Actualizar Joya" : "Subir Joya"} icon="pi pi-check" className="w-full" type="submit" />
+          <Button label="Iniciar Sesión" icon="pi pi-sign-in" type="submit" className="w-full p-button-primary" />
         </form>
       </Card>
+      <Toast ref={(el) => (Toast.current = el)} />
     </div>
   );
 };
 
-export default UploadJewelry;
+export default Login;

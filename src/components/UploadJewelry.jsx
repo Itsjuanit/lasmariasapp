@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { collection, addDoc, doc, getDoc, updateDoc } from "firebase/firestore";
 import { db, storage } from "../firebaseConfig";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { v4 as uuidv4 } from "uuid";
 import { InputText } from "primereact/inputtext";
 import { InputNumber } from "primereact/inputnumber";
@@ -10,7 +10,8 @@ import { Button } from "primereact/button";
 import { Card } from "primereact/card";
 import { Toast } from "primereact/toast";
 import { FileUpload } from "primereact/fileupload";
-import "primeflex/primeflex.css"; // Asegúrate de tener PrimeFlex instalado
+import { ProgressBar } from "primereact/progressbar";
+import "primeflex/primeflex.css";
 
 const UploadJewelry = () => {
   const { id } = useParams();
@@ -26,6 +27,10 @@ const UploadJewelry = () => {
   const [success, setSuccess] = useState("");
   const [editing, setEditing] = useState(false);
   const [imageUrl, setImageUrl] = useState("");
+  const [uploadProgress, setUploadProgress] = useState(0); // Estado para el progreso de carga
+
+  const toast = useRef(null);
+  const fileUploadRef = useRef(null); // Referencia para FileUpload
 
   useEffect(() => {
     const fetchJoya = async () => {
@@ -68,17 +73,37 @@ const UploadJewelry = () => {
     e.preventDefault();
     setError("");
     setSuccess("");
+    setUploadProgress(0); // Reiniciar progreso de carga
 
     try {
       let newImageUrl = imageUrl;
 
       if (imageFile) {
-        // Subir imagen a Firebase Storage
+        // Subir imagen a Firebase Storage con progreso
         const imageRef = ref(storage, `images/${imageFile.name + uuidv4()}`);
-        const snapshot = await uploadBytes(imageRef, imageFile);
-        newImageUrl = await getDownloadURL(snapshot.ref);
+        const uploadTask = uploadBytesResumable(imageRef, imageFile);
+
+        uploadTask.on(
+          "state_changed",
+          (snapshot) => {
+            // Actualizar progreso de carga
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            setUploadProgress(progress);
+          },
+          (error) => {
+            setError("Error al subir la imagen: " + error.message);
+            toast.current.show({ severity: "error", summary: "Error", detail: error.message, life: 3000 });
+          },
+          async () => {
+            // Obtener URL de la imagen subida
+            newImageUrl = await getDownloadURL(uploadTask.snapshot.ref);
+            setUploadProgress(100); // Completar la barra de progreso
+            toast.current.show({ severity: "success", summary: "Éxito", detail: "Imagen subida con éxito", life: 3000 });
+          }
+        );
       }
 
+      // Actualizar o añadir el documento de la joya
       if (editing) {
         const jewelryRef = doc(db, "jewelry", id);
         await updateDoc(jewelryRef, {
@@ -90,6 +115,7 @@ const UploadJewelry = () => {
           image: newImageUrl,
         });
         setSuccess("La joya fue actualizada con éxito.");
+        toast.current.show({ severity: "success", summary: "Éxito", detail: "La joya fue actualizada con éxito", life: 3000 });
       } else {
         await addDoc(collection(db, "jewelry"), {
           name: formData.name || "Sin nombre",
@@ -100,8 +126,10 @@ const UploadJewelry = () => {
           image: newImageUrl || "URL de imagen por defecto",
         });
         setSuccess("La joya fue subida con éxito.");
+        toast.current.show({ severity: "success", summary: "Éxito", detail: "La joya fue subida con éxito", life: 3000 });
       }
 
+      // Reiniciar formulario
       setFormData({
         name: "",
         type: "",
@@ -109,18 +137,25 @@ const UploadJewelry = () => {
         salePrice: "",
         quantity: "",
       });
-      setImageFile(null);
-      setImageUrl("");
+      setImageFile(null); // Limpiar estado de imagen
+      setImageUrl(""); // Limpiar URL de la imagen
+      setUploadProgress(0); // Reiniciar progreso de carga
+
+      // Limpiar FileUpload
+      if (fileUploadRef.current) {
+        fileUploadRef.current.clear(); // Limpiar el componente de subir archivo
+      }
     } catch (error) {
       setError("Error al procesar la joya: " + error.message);
+      toast.current.show({ severity: "error", summary: "Error", detail: error.message, life: 3000 });
     }
   };
 
   return (
     <div className="flex justify-content-center align-items-center min-h-screen">
       <Card title={editing ? "Editar Joya" : "Subir Nueva Joya"} className="p-4 shadow-2 w-full md:w-6 lg:w-4">
-        {error && <Toast severity="error" summary="Error" detail={error} life={3000} />}
-        {success && <Toast severity="success" summary="Éxito" detail={success} life={3000} />}
+        {/* Componente Toast */}
+        <Toast ref={toast} />
 
         <form onSubmit={handleSubmit}>
           <div className="p-fluid grid">
@@ -167,10 +202,20 @@ const UploadJewelry = () => {
               />
             </div>
 
-            <div className="field col-12 md:col-6">
+            {/* Parte de Subir Imagen debajo de la cantidad */}
+            <div className="field col-12">
               <label htmlFor="image">Imagen</label>
-              <FileUpload name="image" accept="image/*" customUpload auto chooseLabel="Subir Imagen" onSelect={handleImageChange} />
+              <FileUpload
+                name="image"
+                accept="image/*"
+                customUpload
+                auto
+                chooseLabel="Subir Imagen"
+                onSelect={handleImageChange}
+                ref={fileUploadRef} // Referencia al FileUpload
+              />
               {imageUrl && <img src={imageUrl} alt="Joya" width="100" className="mt-2" style={{ borderRadius: "8px" }} />}
+              {uploadProgress > 0 && <ProgressBar value={uploadProgress} className="mt-2" />}
             </div>
           </div>
 
