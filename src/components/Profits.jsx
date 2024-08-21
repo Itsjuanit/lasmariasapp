@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { collection, getDocs } from "firebase/firestore";
+import React, { useState, useEffect, useRef } from "react";
+import { collection, getDocs, deleteDoc, doc } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
@@ -7,6 +7,8 @@ import { Card } from "primereact/card";
 import { Button } from "primereact/button";
 import { Calendar } from "primereact/calendar";
 import { Divider } from "primereact/divider";
+import { Dialog } from "primereact/dialog";
+import { Toast } from "primereact/toast";
 
 const Profits = () => {
   const [sales, setSales] = useState([]);
@@ -14,6 +16,9 @@ const Profits = () => {
   const [monthlyProfit, setMonthlyProfit] = useState(0);
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
+  const [selectedSale, setSelectedSale] = useState(null); // Para el Dialog
+  const [isDialogVisible, setDialogVisible] = useState(false); // Controla la visibilidad del Dialog
+  const toast = useRef(null); // Referencia para el Toast
 
   useEffect(() => {
     const fetchSales = async () => {
@@ -51,8 +56,54 @@ const Profits = () => {
     }
   };
 
+  const confirmDeleteSale = (sale) => {
+    setSelectedSale(sale); // Guardamos la venta seleccionada
+    setDialogVisible(true); // Mostramos el Dialog
+  };
+
+  const deleteSale = async () => {
+    try {
+      await deleteDoc(doc(db, "sales", selectedSale.id));
+      setSales(sales.filter((sale) => sale.id !== selectedSale.id));
+      setFilteredSales(filteredSales.filter((sale) => sale.id !== selectedSale.id));
+      setDialogVisible(false); // Ocultamos el Dialog
+
+      // Mostramos el toast de éxito
+      toast.current.show({ severity: "success", summary: "Éxito", detail: "Venta eliminada correctamente", life: 3000 });
+    } catch (error) {
+      console.error("Error al eliminar la venta:", error);
+    }
+  };
+
+  const deleteButton = (data) => {
+    return <Button label="Eliminar" icon="pi pi-trash" className="p-button-danger" onClick={() => confirmDeleteSale(data)} />;
+  };
+
   return (
     <div className="container mx-auto mt-6">
+      <Toast ref={toast} /> {/* Componente Toast */}
+      <Dialog
+        visible={isDialogVisible}
+        style={{ width: "350px" }}
+        header="Confirmar eliminación"
+        modal
+        footer={
+          <div>
+            <Button label="No" icon="pi pi-times" onClick={() => setDialogVisible(false)} className="p-button-text" />
+            <Button label="Sí" icon="pi pi-check" onClick={deleteSale} autoFocus />
+          </div>
+        }
+        onHide={() => setDialogVisible(false)}
+      >
+        <div className="confirmation-content">
+          <i className="pi pi-exclamation-triangle p-mr-3" style={{ fontSize: "2rem" }} />
+          {selectedSale && (
+            <span>
+              ¿Estás seguro de que deseas eliminar la venta de <b>{selectedSale.name}</b>?
+            </span>
+          )}
+        </div>
+      </Dialog>
       <div className="p-grid">
         {/* Columna izquierda: Tabla de ventas */}
         <div className="p-col-12 p-md-8">
@@ -72,7 +123,7 @@ const Profits = () => {
 
             <Button label="Buscar" onClick={filterSalesByDate} className="p-mb-4 w-full" />
 
-            <DataTable value={filteredSales.length > 0 ? filteredSales : sales} responsiveLayout="scroll">
+            <DataTable value={filteredSales.length > 0 ? filteredSales : sales} responsiveLayout="scroll" style={{ marginTop: "20px" }}>
               <Column field="name" header="Nombre"></Column>
               <Column field="buyerName" header="Comprador"></Column>
               <Column field="purchasePrice" header="Precio de Compra"></Column>
@@ -83,6 +134,7 @@ const Profits = () => {
                 header="Fecha de Venta"
                 body={(data) => `${data.saleDate.toLocaleDateString()} ${data.saleDate.toLocaleTimeString()}`}
               ></Column>
+              <Column body={deleteButton} header="Eliminar"></Column>
             </DataTable>
           </Card>
         </div>

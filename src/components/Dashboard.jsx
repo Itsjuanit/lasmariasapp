@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { collection, getDocs, deleteDoc, doc, updateDoc, addDoc } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import { useNavigate } from "react-router-dom";
@@ -20,6 +20,7 @@ const Dashboard = () => {
   const [newSalePrice, setNewSalePrice] = useState(""); // Precio de venta actualizado
   const [purchaseTerms, setPurchaseTerms] = useState(""); // Plazos de pago
   const navigate = useNavigate();
+  const toast = useRef(null); // Referencia al Toast
 
   // Función para obtener las joyas de la base de datos
   useEffect(() => {
@@ -44,6 +45,9 @@ const Dashboard = () => {
     try {
       await deleteDoc(doc(db, "jewelry", id));
       setJoyas(joyas.filter((item) => item.id !== id));
+
+      // Mostrar mensaje de éxito
+      toast.current.show({ severity: "success", summary: "Éxito", detail: "Joya eliminada correctamente", life: 3000 });
     } catch (error) {
       console.error("Error al eliminar el artículo:", error);
     }
@@ -89,6 +93,9 @@ const Dashboard = () => {
           });
 
           setJoyas(joyas.map((item) => (item.id === selectedJoya.id ? { ...item, quantity: newQuantity } : item)));
+
+          // Mostrar mensaje de éxito de venta
+          toast.current.show({ severity: "success", summary: "Éxito", detail: "Venta registrada correctamente", life: 3000 });
         } else {
           console.error("Stock insuficiente");
         }
@@ -140,8 +147,8 @@ const Dashboard = () => {
 
   return (
     <div className="container mx-auto mt-6">
+      <Toast ref={toast} /> {/* Componente Toast para mostrar mensajes */}
       <Toolbar className="mb-4" left={<Button label="Agregar Joya" icon="pi pi-plus" onClick={handleAddJoya} />} />
-
       <DataTable value={joyas} paginator rows={5} responsiveLayout="scroll" emptyMessage="No se encontraron joyas.">
         <Column field="name" header="Nombre"></Column>
         <Column field="type" header="Tipo"></Column>
@@ -157,7 +164,6 @@ const Dashboard = () => {
         ></Column>
         <Column body={actionBodyTemplate} header="Acciones"></Column>
       </DataTable>
-
       {/* Modal de confirmación de venta */}
       <Dialog visible={openModal} style={{ width: "450px" }} header="Confirmar Venta" modal className="p-fluid" onHide={handleCloseModal}>
         <div className="p-field">
@@ -177,7 +183,6 @@ const Dashboard = () => {
           <Button label="Confirmar" icon="pi pi-check" className="p-button-text" onClick={handleConfirmSale} />
         </div>
       </Dialog>
-
       <ConfirmDialog />
     </div>
   );
