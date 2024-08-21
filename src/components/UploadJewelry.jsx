@@ -27,10 +27,10 @@ const UploadJewelry = () => {
   const [success, setSuccess] = useState("");
   const [editing, setEditing] = useState(false);
   const [imageUrl, setImageUrl] = useState("");
-  const [uploadProgress, setUploadProgress] = useState(0); // Estado para el progreso de carga
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const toast = useRef(null);
-  const fileUploadRef = useRef(null); // Referencia para FileUpload
+  const fileUploadRef = useRef(null);
 
   useEffect(() => {
     const fetchJoya = async () => {
@@ -73,7 +73,7 @@ const UploadJewelry = () => {
     e.preventDefault();
     setError("");
     setSuccess("");
-    setUploadProgress(0); // Reiniciar progreso de carga
+    setUploadProgress(0);
 
     try {
       let newImageUrl = imageUrl;
@@ -86,7 +86,6 @@ const UploadJewelry = () => {
         uploadTask.on(
           "state_changed",
           (snapshot) => {
-            // Actualizar progreso de carga
             const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
             setUploadProgress(progress);
           },
@@ -98,52 +97,51 @@ const UploadJewelry = () => {
             // Obtener URL de la imagen subida
             newImageUrl = await getDownloadURL(uploadTask.snapshot.ref);
             setUploadProgress(100); // Completar la barra de progreso
-            toast.current.show({ severity: "success", summary: "Éxito", detail: "Imagen subida con éxito", life: 3000 });
+
+            // Guardar en Firestore la URL de la imagen subida
+            if (editing) {
+              const jewelryRef = doc(db, "jewelry", id);
+              await updateDoc(jewelryRef, {
+                name: formData.name,
+                type: formData.type,
+                purchasePrice: parseFloat(formData.purchasePrice),
+                salePrice: parseFloat(formData.salePrice),
+                quantity: parseInt(formData.quantity, 10),
+                image: newImageUrl, // Asignar correctamente la URL de la imagen
+              });
+              setSuccess("La joya fue actualizada con éxito.");
+              toast.current.show({ severity: "success", summary: "Éxito", detail: "La joya fue actualizada con éxito", life: 3000 });
+            } else {
+              await addDoc(collection(db, "jewelry"), {
+                name: formData.name || "Sin nombre",
+                type: formData.type || "Sin tipo",
+                purchasePrice: parseFloat(formData.purchasePrice) || 0,
+                salePrice: parseFloat(formData.salePrice) || 0,
+                quantity: parseInt(formData.quantity, 10) || 0,
+                image: newImageUrl || "URL de imagen por defecto", // Guardar la URL obtenida
+              });
+              setSuccess("La joya fue subida con éxito.");
+              toast.current.show({ severity: "success", summary: "Éxito", detail: "La joya fue subida con éxito", life: 3000 });
+            }
+
+            // Reiniciar formulario
+            setFormData({
+              name: "",
+              type: "",
+              purchasePrice: "",
+              salePrice: "",
+              quantity: "",
+            });
+            setImageFile(null); // Limpiar estado de imagen
+            setImageUrl(""); // Limpiar URL de la imagen
+            setUploadProgress(0); // Reiniciar progreso de carga
+
+            // Limpiar FileUpload
+            if (fileUploadRef.current) {
+              fileUploadRef.current.clear(); // Limpiar el componente de subir archivo
+            }
           }
         );
-      }
-
-      // Actualizar o añadir el documento de la joya
-      if (editing) {
-        const jewelryRef = doc(db, "jewelry", id);
-        await updateDoc(jewelryRef, {
-          name: formData.name,
-          type: formData.type,
-          purchasePrice: parseFloat(formData.purchasePrice),
-          salePrice: parseFloat(formData.salePrice),
-          quantity: parseInt(formData.quantity, 10),
-          image: newImageUrl,
-        });
-        setSuccess("La joya fue actualizada con éxito.");
-        toast.current.show({ severity: "success", summary: "Éxito", detail: "La joya fue actualizada con éxito", life: 3000 });
-      } else {
-        await addDoc(collection(db, "jewelry"), {
-          name: formData.name || "Sin nombre",
-          type: formData.type || "Sin tipo",
-          purchasePrice: parseFloat(formData.purchasePrice) || 0,
-          salePrice: parseFloat(formData.salePrice) || 0,
-          quantity: parseInt(formData.quantity, 10) || 0,
-          image: newImageUrl || "URL de imagen por defecto",
-        });
-        setSuccess("La joya fue subida con éxito.");
-        toast.current.show({ severity: "success", summary: "Éxito", detail: "La joya fue subida con éxito", life: 3000 });
-      }
-
-      // Reiniciar formulario
-      setFormData({
-        name: "",
-        type: "",
-        purchasePrice: "",
-        salePrice: "",
-        quantity: "",
-      });
-      setImageFile(null); // Limpiar estado de imagen
-      setImageUrl(""); // Limpiar URL de la imagen
-      setUploadProgress(0); // Reiniciar progreso de carga
-
-      // Limpiar FileUpload
-      if (fileUploadRef.current) {
-        fileUploadRef.current.clear(); // Limpiar el componente de subir archivo
       }
     } catch (error) {
       setError("Error al procesar la joya: " + error.message);
