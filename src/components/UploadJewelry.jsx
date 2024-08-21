@@ -73,6 +73,7 @@ const UploadJewelry = () => {
       let newImageUrl = imageUrl;
 
       if (imageFile) {
+        // Subir imagen a Firebase Storage
         const imageRef = ref(storage, `images/${imageFile.name + uuidv4()}`);
         const snapshot = await uploadBytes(imageRef, imageFile);
         newImageUrl = await getDownloadURL(snapshot.ref);
