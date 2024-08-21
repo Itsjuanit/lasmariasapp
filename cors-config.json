@@ -1,0 +1,7 @@
+[
+  {
+    "origin": ["https://lasmariasapp.vercel.app/"],
+    "method": ["GET", "POST"],
+    "maxAgeSeconds": 3600
+  }
+]
