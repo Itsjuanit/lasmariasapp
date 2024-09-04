@@ -16,13 +16,13 @@ const Dashboard = () => {
   const [joyas, setJoyas] = useState([]);
   const [openModal, setOpenModal] = useState(false);
   const [selectedJoya, setSelectedJoya] = useState(null);
-  const [buyerName, setBuyerName] = useState(""); // Nombre del comprador
-  const [newSalePrice, setNewSalePrice] = useState(""); // Precio de venta actualizado
-  const [purchaseTerms, setPurchaseTerms] = useState(""); // Plazos de pago
+  const [buyerName, setBuyerName] = useState("");
+  const [newSalePrice, setNewSalePrice] = useState("");
+  const [purchaseTerms, setPurchaseTerms] = useState("");
+  const [searchTerm, setSearchTerm] = useState(""); // Nuevo estado para el término de búsqueda
   const navigate = useNavigate();
-  const toast = useRef(null); // Referencia al Toast
+  const toast = useRef(null);
 
-  // Función para obtener las joyas de la base de datos
   useEffect(() => {
     const fetchJoyas = async () => {
       try {
@@ -40,41 +40,34 @@ const Dashboard = () => {
     fetchJoyas();
   }, []);
 
-  // Función para eliminar una joya
   const handleDelete = async (id) => {
     try {
       await deleteDoc(doc(db, "jewelry", id));
       setJoyas(joyas.filter((item) => item.id !== id));
-
-      // Mostrar mensaje de éxito
       toast.current.show({ severity: "success", summary: "Éxito", detail: "Joya eliminada correctamente", life: 3000 });
     } catch (error) {
       console.error("Error al eliminar el artículo:", error);
     }
   };
 
-  // Abrir el modal de confirmación de venta
   const handleOpenModal = (joya) => {
     setSelectedJoya(joya);
-    setBuyerName(""); // Limpiar el nombre del comprador
-    setNewSalePrice(""); // Limpiar el campo de precio de venta
-    setPurchaseTerms(""); // Limpiar el campo de plazos
+    setBuyerName("");
+    setNewSalePrice("");
+    setPurchaseTerms("");
     setOpenModal(true);
   };
 
-  // Cerrar el modal
   const handleCloseModal = () => {
     setOpenModal(false);
     setSelectedJoya(null);
   };
 
-  // Confirmar la venta y reducir el stock, además de registrar la venta individual
   const handleConfirmSale = async () => {
     if (selectedJoya) {
       try {
         const jewelryRef = doc(db, "jewelry", selectedJoya.id);
         const newQuantity = selectedJoya.quantity - 1;
-
         const finalSalePrice = newSalePrice ? parseFloat(newSalePrice) : selectedJoya.salePrice;
 
         if (newQuantity >= 0) {
@@ -94,7 +87,6 @@ const Dashboard = () => {
 
           setJoyas(joyas.map((item) => (item.id === selectedJoya.id ? { ...item, quantity: newQuantity } : item)));
 
-          // Mostrar mensaje de éxito de venta
           toast.current.show({ severity: "success", summary: "Éxito", detail: "Venta registrada correctamente", life: 3000 });
         } else {
           console.error("Stock insuficiente");
@@ -107,17 +99,19 @@ const Dashboard = () => {
     }
   };
 
-  // Navegar a la página de edición
   const handleEdit = (id) => {
     navigate(`/edit/${id}`);
   };
 
-  // Navegar a la página de agregar joya
   const handleAddJoya = () => {
     navigate("/upload");
   };
 
-  // Columnas de la tabla
+  // Filtrar las joyas en función del término de búsqueda
+  const filteredJoyas = joyas.filter(
+    (joya) => joya.name.toLowerCase().includes(searchTerm.toLowerCase()) || joya.type.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   const actionBodyTemplate = (rowData) => {
     return (
       <>
@@ -147,9 +141,22 @@ const Dashboard = () => {
 
   return (
     <div className="container mx-auto mt-6">
-      <Toast ref={toast} /> {/* Componente Toast para mostrar mensajes */}
+      <Toast ref={toast} />
       <Toolbar className="mb-4" left={<Button label="Agregar Joya" icon="pi pi-plus" onClick={handleAddJoya} />} />
-      <DataTable value={joyas} paginator rows={5} responsiveLayout="scroll" emptyMessage="No se encontraron joyas.">
+
+      {/* Agregar input de búsqueda */}
+      <div className="mb-4">
+        <InputText value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Buscar por nombre o tipo" />
+      </div>
+
+      <DataTable
+        value={filteredJoyas}
+        paginator
+        rows={5}
+        responsiveLayout="scroll"
+        emptyMessage="No se encontraron joyas."
+        rowsPerPageOptions={[5, 10, 25, 50]}
+      >
         <Column field="name" header="Nombre"></Column>
         <Column field="type" header="Tipo"></Column>
         <Column field="purchasePrice" header="Precio de Compra"></Column>
@@ -164,7 +171,7 @@ const Dashboard = () => {
         ></Column>
         <Column body={actionBodyTemplate} header="Acciones"></Column>
       </DataTable>
-      {/* Modal de confirmación de venta */}
+
       <Dialog visible={openModal} style={{ width: "450px" }} header="Confirmar Venta" modal className="p-fluid" onHide={handleCloseModal}>
         <div className="p-field">
           <label htmlFor="buyerName">Nombre del Comprador</label>
