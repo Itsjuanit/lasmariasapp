@@ -41,7 +41,7 @@ const Profits = () => {
             const paymentMonth = new Date(date).getMonth();
             const paymentYear = new Date(date).getFullYear();
             const monthYearKey = `${paymentYear}-${paymentMonth + 1}`;
-            const paymentAmount = parseFloat(sale.termAmount); // Monto de cada pago
+            const paymentAmount = parseFloat(sale.termAmount);
 
             if (!acc[monthYearKey]) {
               acc[monthYearKey] = { totalProfit: 0, sales: 0 };
@@ -114,10 +114,8 @@ const Profits = () => {
         sales.map((s) => (s.id === sale.id ? { ...s, remainingPayments, paymentDates: [...s.paymentDates, currentPaymentDate] } : s))
       );
 
-      // Actualizar ganancias mensuales con el pago
       updateMonthlyProfits(parseFloat(paymentAmount), currentPaymentDate);
 
-      // Enviar mensaje de WhatsApp
       sendWhatsAppMessage(sale.buyerName, sale.buyerPhone, remainingPayments, sale.purchaseTerms);
 
       toast.current.show({
@@ -215,14 +213,28 @@ const Profits = () => {
 
             <div className="p-grid p-align-center p-justify-between p-mb-4">
               <div className="p-col-12 p-md-6">
-                <Calendar value={startDate} onChange={(e) => setStartDate(e.value)} placeholder="Fecha Inicio" className="w-full" />
+                <Calendar
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.value)}
+                  placeholder="Fecha Inicio"
+                  className="mb-2"
+                  showIcon
+                  style={{ width: "200px" }}
+                />
               </div>
               <div className="p-col-12 p-md-6">
-                <Calendar value={endDate} onChange={(e) => setEndDate(e.value)} placeholder="Fecha Fin" className="w-full" />
+                <Calendar
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.value)}
+                  placeholder="Fecha Fin"
+                  className="mb-2"
+                  showIcon
+                  style={{ width: "200px" }}
+                />
               </div>
             </div>
 
-            <Button label="Buscar" onClick={filterSalesByDate} className="p-mb-4 w-full" />
+            <Button label="Buscar" onClick={filterSalesByDate} className="p-mb-4" style={{ width: "200px" }} />
 
             <DataTable value={filteredSales.length > 0 ? filteredSales : sales} responsiveLayout="scroll" style={{ marginTop: "20px" }}>
               <Column field="items" header="Artículos"></Column>
