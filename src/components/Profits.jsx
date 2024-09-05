@@ -14,6 +14,7 @@ const Profits = () => {
   const [sales, setSales] = useState([]);
   const [filteredSales, setFilteredSales] = useState([]);
   const [monthlyProfit, setMonthlyProfit] = useState(0);
+  const [monthlyProfits, setMonthlyProfits] = useState({}); // Nuevo estado para almacenar ganancias por mes
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
   const [selectedSale, setSelectedSale] = useState(null); // Para el Dialog
@@ -32,6 +33,27 @@ const Profits = () => {
 
         const sortedSales = salesData.sort((a, b) => b.saleDate - a.saleDate);
         setSales(sortedSales);
+
+        // Calcular las ganancias mensuales
+        const profitsByMonth = sortedSales.reduce((acc, sale) => {
+          const saleMonth = sale.saleDate.getMonth(); // Obtener el mes
+          const saleYear = sale.saleDate.getFullYear(); // Obtener el año
+          const monthYearKey = `${saleYear}-${saleMonth + 1}`; // Llave en formato "YYYY-MM"
+
+          const profit = sale.salePrice - sale.purchasePrice;
+
+          // Sumar la ganancia al mes correspondiente
+          if (!acc[monthYearKey]) {
+            acc[monthYearKey] = { totalProfit: 0, sales: 0 };
+          }
+
+          acc[monthYearKey].totalProfit += profit;
+          acc[monthYearKey].sales += 1;
+
+          return acc;
+        }, {});
+
+        setMonthlyProfits(profitsByMonth); // Guardar las ganancias mensuales en el estado
 
         const currentMonth = new Date().getMonth();
         const totalProfit = sortedSales
@@ -145,6 +167,17 @@ const Profits = () => {
             <h4 className="text-center">Ganancia del Mes</h4>
             <Divider />
             <div className="text-center text-xl">${monthlyProfit.toFixed(2)}</div>
+
+            {/* Mostrar las ganancias por cada mes */}
+            <h4 className="text-center mt-4">Ganancias por Mes</h4>
+            <ul>
+              {Object.keys(monthlyProfits).map((monthYearKey) => (
+                <li key={monthYearKey}>
+                  <strong>{monthYearKey}:</strong> ${monthlyProfits[monthYearKey].totalProfit.toFixed(2)} - Ventas:{" "}
+                  {monthlyProfits[monthYearKey].sales}
+                </li>
+              ))}
+            </ul>
           </Card>
         </div>
       </div>

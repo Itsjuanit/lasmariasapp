@@ -11,6 +11,7 @@ import { Card } from "primereact/card";
 import { Toast } from "primereact/toast";
 import { FileUpload } from "primereact/fileupload";
 import { ProgressBar } from "primereact/progressbar";
+import { Dropdown } from "primereact/dropdown"; // Importar el Dropdown de PrimeReact
 import "primeflex/primeflex.css";
 
 const UploadJewelry = () => {
@@ -31,6 +32,23 @@ const UploadJewelry = () => {
 
   const toast = useRef(null);
   const fileUploadRef = useRef(null);
+
+  // Opciones del dropdown para el campo "type"
+  const typeOptions = [
+    { label: "Anillo", value: "Anillo" },
+    { label: "Anillo Cintillo", value: "Anillo Cintillo" },
+    { label: "Aros", value: "Aros" },
+    { label: "Aros Argolla", value: "Aros Argolla" },
+    { label: "Aros Argolla Mediana", value: "Aros Argolla Mediana" },
+    { label: "Aros Argolla Mini", value: "Aros Argolla Mini" },
+    { label: "Aros Mini", value: "Aros Mini" },
+    { label: "Cadena", value: "Cadena" },
+    { label: "Conjunto", value: "Conjunto" },
+    { label: "Dije", value: "Dije" },
+    { label: "Gargantilla", value: "Gargantilla" },
+    { label: "Pulsera", value: "Pulsera" },
+    { label: "Tobillera", value: "Tobillera" },
+  ];
 
   useEffect(() => {
     const fetchJoya = async () => {
@@ -65,6 +83,13 @@ const UploadJewelry = () => {
     });
   };
 
+  const handleDropdownChange = (e) => {
+    setFormData({
+      ...formData,
+      type: e.value, // Asignar el valor del Dropdown al campo type
+    });
+  };
+
   const handleImageChange = (e) => {
     setImageFile(e.files[0]);
   };
@@ -79,17 +104,15 @@ const UploadJewelry = () => {
       let newImageUrl = imageUrl;
 
       if (!imageFile) {
-        // Mostrar toast si no se ha seleccionado una imagen
-        toast.current.show({ 
-          severity: "warn", 
-          summary: "Aviso", 
-          detail: "No se ha subido ninguna imagen. Se usará una URL por defecto.", 
-          life: 3000 
+        toast.current.show({
+          severity: "warn",
+          summary: "Aviso",
+          detail: "No se ha subido ninguna imagen. Se usará una URL por defecto.",
+          life: 3000,
         });
       }
 
       if (imageFile) {
-        // Subir imagen a Firebase Storage con progreso
         const imageRef = ref(storage, `images/${imageFile.name + uuidv4()}`);
         const uploadTask = uploadBytesResumable(imageRef, imageFile);
 
@@ -104,14 +127,12 @@ const UploadJewelry = () => {
             toast.current.show({ severity: "error", summary: "Error", detail: error.message, life: 3000 });
           },
           async () => {
-            // Obtener URL de la imagen subida
             newImageUrl = await getDownloadURL(uploadTask.snapshot.ref);
-            setUploadProgress(100); // Completar la barra de progreso
+            setUploadProgress(100);
           }
         );
       }
 
-      // Guardar en Firestore la URL de la imagen (si está disponible) o un valor por defecto
       if (editing) {
         const jewelryRef = doc(db, "jewelry", id);
         await updateDoc(jewelryRef, {
@@ -137,7 +158,6 @@ const UploadJewelry = () => {
         toast.current.show({ severity: "success", summary: "Éxito", detail: "La joya fue subida con éxito", life: 3000 });
       }
 
-      // Reiniciar formulario
       setFormData({
         name: "",
         type: "",
@@ -145,13 +165,12 @@ const UploadJewelry = () => {
         salePrice: "",
         quantity: "",
       });
-      setImageFile(null); // Limpiar estado de imagen
-      setImageUrl(""); // Limpiar URL de la imagen
-      setUploadProgress(0); // Reiniciar progreso de carga
+      setImageFile(null);
+      setImageUrl("");
+      setUploadProgress(0);
 
-      // Limpiar FileUpload
       if (fileUploadRef.current) {
-        fileUploadRef.current.clear(); // Limpiar el componente de subir archivo
+        fileUploadRef.current.clear();
       }
     } catch (error) {
       setError("Error al procesar la joya: " + error.message);
@@ -162,7 +181,6 @@ const UploadJewelry = () => {
   return (
     <div className="flex justify-content-center align-items-center min-h-screen">
       <Card title={editing ? "Editar Joya" : "Subir Nueva Joya"} className="p-4 shadow-2 w-full md:w-6 lg:w-4">
-        {/* Componente Toast */}
         <Toast ref={toast} />
 
         <form onSubmit={handleSubmit}>
@@ -174,7 +192,15 @@ const UploadJewelry = () => {
 
             <div className="field col-12 md:col-6">
               <label htmlFor="type">Tipo</label>
-              <InputText id="type" name="type" value={formData.type} onChange={handleChange} required />
+              <Dropdown
+                id="type"
+                name="type"
+                value={formData.type}
+                options={typeOptions}
+                onChange={handleDropdownChange}
+                placeholder="Seleccionar tipo"
+                required
+              />
             </div>
 
             <div className="field col-12 md:col-6">
@@ -210,7 +236,6 @@ const UploadJewelry = () => {
               />
             </div>
 
-            {/* Parte de Subir Imagen debajo de la cantidad */}
             <div className="field col-12">
               <label htmlFor="image">Imagen</label>
               <FileUpload
@@ -220,7 +245,7 @@ const UploadJewelry = () => {
                 auto
                 chooseLabel="Subir Imagen"
                 onSelect={handleImageChange}
-                ref={fileUploadRef} // Referencia al FileUpload
+                ref={fileUploadRef}
               />
               {imageUrl && <img src={imageUrl} alt="Joya" width="100" className="mt-2" style={{ borderRadius: "8px" }} />}
               {uploadProgress > 0 && <ProgressBar value={uploadProgress} className="mt-2" />}

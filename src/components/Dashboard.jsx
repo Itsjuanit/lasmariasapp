@@ -11,6 +11,8 @@ import { InputNumber } from "primereact/inputnumber";
 import { Toast } from "primereact/toast";
 import { Toolbar } from "primereact/toolbar";
 import { ConfirmDialog, confirmDialog } from "primereact/confirmdialog";
+import { FilterMatchMode } from "primereact/api"; // Importar los modos de filtro
+import { Tooltip } from "primereact/tooltip";
 
 const Dashboard = () => {
   const [joyas, setJoyas] = useState([]);
@@ -19,10 +21,14 @@ const Dashboard = () => {
   const [buyerName, setBuyerName] = useState("");
   const [newSalePrice, setNewSalePrice] = useState("");
   const [purchaseTerms, setPurchaseTerms] = useState("");
-  const [searchTerm, setSearchTerm] = useState(""); // Nuevo estado para el término de búsqueda
+  const [filters, setFilters] = useState({
+    global: { value: null, matchMode: FilterMatchMode.CONTAINS }, // Configurar el filtro global
+  });
+  const [globalFilterValue, setGlobalFilterValue] = useState(""); // Estado del valor de filtro global
   const navigate = useNavigate();
   const toast = useRef(null);
 
+  // Obtener las joyas desde Firestore
   useEffect(() => {
     const fetchJoyas = async () => {
       try {
@@ -31,6 +37,7 @@ const Dashboard = () => {
           ...doc.data(),
           id: doc.id,
         }));
+        console.log("Joyas obtenidas:", joyasData); // Verificar los datos cargados
         setJoyas(joyasData);
       } catch (error) {
         console.error("Error al obtener las joyas:", error);
@@ -107,18 +114,55 @@ const Dashboard = () => {
     navigate("/upload");
   };
 
-  // Filtrar las joyas en función del término de búsqueda
-  const filteredJoyas = joyas.filter(
-    (joya) => joya.name.toLowerCase().includes(searchTerm.toLowerCase()) || joya.type.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Función para manejar el cambio en el filtro global
+  const onGlobalFilterChange = (e) => {
+    const value = e.target.value;
+    let _filters = { ...filters };
+    _filters["global"].value = value;
+    setFilters(_filters);
+    setGlobalFilterValue(value); // Actualizar el estado del valor global
+  };
+
+  // Crear el encabezado con el campo de filtro global incorporado
+  const renderHeader = () => {
+    return (
+      <div className="table-header">
+        <span className="p-input-icon-right">
+          <InputText
+            value={globalFilterValue}
+            onChange={onGlobalFilterChange}
+            placeholder="Buscar por nombre o tipo"
+            style={{ width: "250px" }}
+          />
+        </span>
+      </div>
+    );
+  };
+
+  const header = renderHeader();
 
   const actionBodyTemplate = (rowData) => {
     return (
       <>
-        <Button icon="pi pi-pencil" className="p-button-rounded p-button-warning mr-2" onClick={() => handleEdit(rowData.id)} />
+        <Button
+          icon="pi pi-pencil"
+          className="p-button-rounded p-button-warning mr-1"
+          onClick={() => handleEdit(rowData.id)}
+          tooltipOptions={{ position: "top" }}
+          tooltip="Editar"
+        />
+        <Button
+          label=""
+          icon="pi pi-shopping-cart"
+          className="p-button-rounded p-button-success mr-1"
+          onClick={() => handleOpenModal(rowData)}
+          disabled={rowData.quantity <= 0}
+          tooltipOptions={{ position: "top" }}
+          tooltip="Vender"
+        />
         <Button
           icon="pi pi-trash"
-          className="p-button-rounded p-button-danger mr-2"
+          className="p-button-rounded p-button-danger mr-1"
           onClick={() =>
             confirmDialog({
               message: `¿Estás seguro de que quieres eliminar "${rowData.name}"?`,
@@ -127,13 +171,8 @@ const Dashboard = () => {
               accept: () => handleDelete(rowData.id),
             })
           }
-        />
-        <Button
-          label="Vender"
-          icon="pi pi-shopping-cart"
-          className="p-button-rounded p-button-success"
-          onClick={() => handleOpenModal(rowData)}
-          disabled={rowData.quantity <= 0}
+          tooltipOptions={{ position: "top" }}
+          tooltip="Eliminar"
         />
       </>
     );
@@ -144,24 +183,22 @@ const Dashboard = () => {
       <Toast ref={toast} />
       <Toolbar className="mb-4" left={<Button label="Agregar Joya" icon="pi pi-plus" onClick={handleAddJoya} />} />
 
-      {/* Agregar input de búsqueda */}
-      <div className="mb-4">
-        <InputText value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Buscar por nombre o tipo" />
-      </div>
-
       <DataTable
-        value={filteredJoyas}
+        value={joyas} // Usa directamente las joyas
         paginator
         rows={5}
         responsiveLayout="scroll"
         emptyMessage="No se encontraron joyas."
         rowsPerPageOptions={[5, 10, 25, 50]}
+        filters={filters} // Aplicar los filtros
+        globalFilterFields={["name", "type"]} // Definir los campos para el filtro global
+        header={header} // Usar el encabezado personalizado
       >
-        <Column field="name" header="Nombre"></Column>
-        <Column field="type" header="Tipo"></Column>
+        <Column field="name" header="Nombre" sortable></Column>
+        <Column field="type" header="Tipo" sortable></Column>
         <Column field="purchasePrice" header="Precio de Compra"></Column>
         <Column field="salePrice" header="Precio de Venta"></Column>
-        <Column field="quantity" header="Cantidad"></Column>
+        <Column field="quantity" header="Cantidad" sortable></Column>
         <Column
           field="image"
           header="Imagen"
