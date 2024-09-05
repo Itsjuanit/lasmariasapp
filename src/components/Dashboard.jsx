@@ -27,9 +27,9 @@ const Dashboard = () => {
   const navigate = useNavigate();
 
   const termOptions = [
-    { label: "Sin plazos", value: 1 },
-    { label: "2 plazos", value: 2 },
-    { label: "3 plazos", value: 3 },
+    { label: "Sin cuotas", value: 1 },
+    { label: "2 cuotas", value: 2 },
+    { label: "3 cuotas", value: 3 },
   ];
 
   // Obtener las joyas desde Firestore
@@ -236,12 +236,12 @@ const Dashboard = () => {
           <InputText id="buyerPhone" value={buyerPhone} onChange={(e) => setBuyerPhone(e.target.value)} />
         </div>
         <div className="p-field">
-          <label htmlFor="purchaseTerms">Plazos</label>
+          <label htmlFor="purchaseTerms">Cuotas</label>
           <Dropdown
             value={purchaseTerms}
             options={termOptions}
             onChange={(e) => setPurchaseTerms(e.value)}
-            placeholder="Selecciona el número de plazos"
+            placeholder="Selecciona el número de cuotas"
           />
         </div>
         <div className="p-field">

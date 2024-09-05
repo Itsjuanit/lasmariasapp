@@ -118,7 +118,7 @@ const Sales = () => {
       toast.current.show({
         severity: "success",
         summary: "Éxito",
-        detail: `Pago de cuota registrado. Quedan ${updatedRemainingPayments} plazos`,
+        detail: `Pago de cuota registrado. Quedan ${updatedRemainingPayments} cuotas`,
         life: 3000,
       });
 
@@ -151,7 +151,7 @@ const Sales = () => {
 
   const paymentButton = (sale) => (
     <Button
-      label="Registrar Pago"
+      label="Pago"
       icon="pi pi-check"
       className="p-button-success mr-2"
       disabled={sale.remainingPayments <= 0}
