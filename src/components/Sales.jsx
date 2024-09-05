@@ -28,7 +28,7 @@ const Sales = () => {
           id: doc.id,
           saleDate: doc.data().saleDate.toDate(),
           remainingPayments: doc.data().remainingPayments || doc.data().purchaseTerms,
-          paymentDates: doc.data().paymentDates || [],
+          paymentDates: doc.data().paymentDates ? doc.data().paymentDates.map((date) => date.toDate()) : [],
         }));
         setSales(salesData);
       } catch (error) {
