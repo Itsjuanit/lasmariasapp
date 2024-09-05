@@ -195,7 +195,7 @@ const Dashboard = () => {
         selection={selectedJoyas}
         onSelectionChange={(e) => setSelectedJoyas(e.value)}
         paginator
-        rows={5}
+        rows={10}
         responsiveLayout="scroll"
         emptyMessage="No se encontraron joyas."
         rowsPerPageOptions={[5, 10, 25, 50]}

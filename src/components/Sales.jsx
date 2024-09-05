@@ -26,7 +26,7 @@ const Sales = () => {
         const salesData = querySnapshot.docs.map((doc) => ({
           ...doc.data(),
           id: doc.id,
-          saleDate: doc.data().saleDate.toDate(), // Fecha de ingreso de la venta
+          saleDate: doc.data().saleDate.toDate(),
           remainingPayments: doc.data().remainingPayments || doc.data().purchaseTerms,
           paymentDates: doc.data().paymentDates || [],
         }));
@@ -48,27 +48,83 @@ const Sales = () => {
     }
   };
 
+  const createWhatsAppLink = (sale, updatedRemainingPayments) => {
+    const { buyerName, buyerPhone, termAmount, totalSalePrice, purchaseTerms, items } = sale;
+
+    const parsedTermAmount = parseFloat(termAmount) || 0;
+    const parsedTotalSalePrice = parseFloat(totalSalePrice) || 0;
+    const paidInstallments = purchaseTerms - updatedRemainingPayments;
+    const totalPaid = paidInstallments * parsedTermAmount;
+    const remainingAmount = parsedTotalSalePrice - totalPaid;
+
+    // Limpiar el número de teléfono, eliminando cualquier prefijo +54 o +549
+    let cleanPhoneNumber = buyerPhone.replace(/\D/g, ""); // Eliminar cualquier cosa que no sea dígito
+    if (cleanPhoneNumber.startsWith("549")) {
+      cleanPhoneNumber = cleanPhoneNumber.slice(3); // Eliminar el prefijo +549 si lo tiene
+    } else if (cleanPhoneNumber.startsWith("54")) {
+      cleanPhoneNumber = cleanPhoneNumber.slice(2); // Eliminar el prefijo +54 si lo tiene
+    }
+
+    const phoneNumber = `549${cleanPhoneNumber}`; // Asegurarse de agregar el prefijo +549 solo una vez
+
+    let message;
+    if (updatedRemainingPayments > 0) {
+      message = `Hola ${buyerName}, somos Las Marias.
+    
+      Queremos agradecerte por tu compra de "${items}".
+    
+      Pagaste una cuota de $${parsedTermAmount.toFixed(2)}. El valor total de tu compra es de $${parsedTotalSalePrice.toFixed(
+        2
+      )}. Hasta el momento has pagado $${totalPaid.toFixed(2)}, y te faltan $${remainingAmount.toFixed(2)} para completar tu pago.
+    
+      Quedan ${updatedRemainingPayments} cuotas de ${purchaseTerms}. Cualquier duda, no dudes en contactarnos. Gracias por confiar en nosotros.`;
+    } else {
+      message = `Hola ${buyerName}, somos Las Marias.
+    
+      ¡Enhorabuena! Has completado el pago total de tu compra de "${items}". Valor total: $${parsedTotalSalePrice.toFixed(2)}.
+    
+      Gracias por confiar en nosotros. Si necesitas más información o asistencia, no dudes en contactarnos. ¡Esperamos verte pronto!`;
+    }
+
+    // Crear el enlace de WhatsApp con codificación de emojis
+    const whatsappLink = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+    return whatsappLink;
+  };
+
   const handlePayment = async (sale) => {
-    const remainingPayments = sale.remainingPayments - 1;
+    const updatedRemainingPayments = sale.remainingPayments - 1; // Actualizar cuotas restantes
     const currentPaymentDate = new Date();
 
     try {
       const saleRef = doc(db, "sales", sale.id);
       await updateDoc(saleRef, {
-        remainingPayments: remainingPayments > 0 ? remainingPayments : 0,
+        remainingPayments: updatedRemainingPayments > 0 ? updatedRemainingPayments : 0,
         paymentDates: [...sale.paymentDates, currentPaymentDate],
       });
 
+      // Actualizar localmente la venta
       setSales(
-        sales.map((s) => (s.id === sale.id ? { ...s, remainingPayments, paymentDates: [...s.paymentDates, currentPaymentDate] } : s))
+        sales.map((s) =>
+          s.id === sale.id
+            ? {
+                ...s,
+                remainingPayments: updatedRemainingPayments > 0 ? updatedRemainingPayments : 0,
+                paymentDates: [...s.paymentDates, currentPaymentDate],
+              }
+            : s
+        )
       );
 
       toast.current.show({
         severity: "success",
         summary: "Éxito",
-        detail: `Pago de cuota registrado. Quedan ${remainingPayments} plazos`,
+        detail: `Pago de cuota registrado. Quedan ${updatedRemainingPayments} plazos`,
         life: 3000,
       });
+
+      // Generar el enlace de WhatsApp con los valores actualizados
+      const whatsappLink = createWhatsAppLink(sale, updatedRemainingPayments);
+      window.open(whatsappLink, "_blank");
     } catch (error) {
       console.error("Error al registrar el pago:", error);
       toast.current.show({ severity: "error", summary: "Error", detail: "Error al registrar el pago", life: 3000 });
@@ -114,22 +170,30 @@ const Sales = () => {
     </>
   );
 
-  const paymentDatesTemplate = (rowData) => {
-    return (
-      <>
-        {rowData.paymentDates.map((date, index) => (
-          <p key={index}>{new Date(date).toLocaleDateString()}</p>
-        ))}
-      </>
-    );
-  };
+  const paymentDatesTemplate = (rowData) => (
+    <>
+      {rowData.paymentDates.map((date, index) => (
+        <p key={index}>{new Date(date).toLocaleDateString()}</p>
+      ))}
+    </>
+  );
 
   const purchasePriceTemplate = (rowData) => {
-    return rowData.items.length > 1 ? "N/A" : rowData.totalPurchasePrice;
+    const itemsArray = typeof rowData.items === "string" ? rowData.items.split(",") : rowData.items;
+    const itemCount = itemsArray.length;
+    console.log("Artículos:", itemsArray, "Cantidad:", itemCount, "Precio de compra:", rowData.totalPurchasePrice);
+    if (itemCount > 1) {
+      return "N/A";
+    } else if (itemCount === 1 && rowData.totalPurchasePrice) {
+      return `$${rowData.totalPurchasePrice.toFixed(2)}`;
+    } else {
+      return "N/A";
+    }
   };
 
-  const saleDateTemplate = (rowData) => {
-    return new Date(rowData.saleDate).toLocaleDateString(); // Mostrar la fecha de ingreso de la venta
+  const saleDateTemplate = (rowData) => new Date(rowData.saleDate).toLocaleDateString();
+  const salePriceTemplate = (rowData) => {
+    return `$${parseFloat(rowData.totalSalePrice).toFixed(2)}`;
   };
 
   return (
@@ -175,11 +239,17 @@ const Sales = () => {
 
             <Button label="Buscar" onClick={filterSalesByDate} className="p-mb-4" />
 
-            <DataTable value={filteredSales.length > 0 ? filteredSales : sales} responsiveLayout="scroll" style={{ marginTop: "20px" }}>
+            <DataTable
+              value={filteredSales.length > 0 ? filteredSales : sales}
+              responsiveLayout="scroll"
+              style={{ marginTop: "20px" }}
+              rowsPerPageOptions={[5, 10, 25, 50]}
+              rows={10}
+            >
               <Column field="items" header="Artículos"></Column>
               <Column field="buyerName" header="Cliente"></Column>
               <Column field="totalPurchasePrice" header="P.Compra" body={purchasePriceTemplate} />
-              <Column field="totalSalePrice" header="P.Venta"></Column>
+              <Column field="totalSalePrice" header="P.Venta" body={salePriceTemplate} />
               <Column field="remainingPayments" header="Cuotas" body={(data) => `${data.remainingPayments}/${data.purchaseTerms}`} />
               <Column field="saleDate" header="Fecha de Ingreso" body={saleDateTemplate} />
               <Column field="paymentDates" header="Fechas de Pago" body={paymentDatesTemplate} />
