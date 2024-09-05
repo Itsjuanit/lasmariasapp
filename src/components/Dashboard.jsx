@@ -245,8 +245,14 @@ const Dashboard = () => {
           />
         </div>
         <div className="p-field">
-          <Button label="Cancelar" icon="pi pi-times" className="p-button-text" onClick={() => setOpenModal(false)} />
-          <Button label="Confirmar" icon="pi pi-check" className="p-button-text" onClick={handleConfirmSale} />
+          <Button
+            label="Cancelar"
+            severity="danger"
+            icon="pi pi-times"
+            className="p-button-text mb-2 mt-2"
+            onClick={() => setOpenModal(false)}
+          />
+          <Button label="Confirmar" severity="success" icon="pi pi-check" className="p-button-tex" onClick={handleConfirmSale} />
         </div>
       </Dialog>
 
