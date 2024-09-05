@@ -58,11 +58,11 @@ const Sales = () => {
     const remainingAmount = parsedTotalSalePrice - totalPaid;
 
     // Limpiar el número de teléfono, eliminando cualquier prefijo +54 o +549
-    let cleanPhoneNumber = buyerPhone.replace(/\D/g, ""); // Eliminar cualquier cosa que no sea dígito
+    let cleanPhoneNumber = buyerPhone.replace(/\D/g, ""); // Eliminar caracteres no numéricos
     if (cleanPhoneNumber.startsWith("549")) {
-      cleanPhoneNumber = cleanPhoneNumber.slice(3); // Eliminar el prefijo +549 si lo tiene
+      cleanPhoneNumber = cleanPhoneNumber.slice(3); // Eliminar prefijo +549 si está presente
     } else if (cleanPhoneNumber.startsWith("54")) {
-      cleanPhoneNumber = cleanPhoneNumber.slice(2); // Eliminar el prefijo +54 si lo tiene
+      cleanPhoneNumber = cleanPhoneNumber.slice(2); // Eliminar prefijo +54 si está presente
     }
 
     const phoneNumber = `549${cleanPhoneNumber}`; // Asegurarse de agregar el prefijo +549 solo una vez
@@ -73,11 +73,11 @@ const Sales = () => {
     
       Queremos agradecerte por tu compra de "${items}".
     
-      Pagaste una cuota de $${parsedTermAmount.toFixed(2)}. El valor total de tu compra es de $${parsedTotalSalePrice.toFixed(
+      Has pagado una cuota de $${parsedTermAmount.toFixed(2)}. El valor total de tu compra es de $${parsedTotalSalePrice.toFixed(
         2
-      )}. Hasta el momento has pagado $${totalPaid.toFixed(2)}, y te faltan $${remainingAmount.toFixed(2)} para completar tu pago.
+      )}. Hasta el momento, has abonado $${totalPaid.toFixed(2)}, y te faltan $${remainingAmount.toFixed(2)} para completar el pago.
     
-      Quedan ${updatedRemainingPayments} cuotas de ${purchaseTerms}. Cualquier duda, no dudes en contactarnos. Gracias por confiar en nosotros.`;
+      Quedan ${updatedRemainingPayments} cuotas de ${purchaseTerms}. Si tienes alguna duda, no dudes en contactarnos. Gracias por confiar en nosotros.`;
     } else {
       message = `Hola ${buyerName}, somos Las Marias.
     
@@ -86,7 +86,7 @@ const Sales = () => {
       Gracias por confiar en nosotros. Si necesitas más información o asistencia, no dudes en contactarnos. ¡Esperamos verte pronto!`;
     }
 
-    // Crear el enlace de WhatsApp con codificación de emojis
+    // Crear el enlace de WhatsApp con codificación de URL
     const whatsappLink = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
     return whatsappLink;
   };
