@@ -213,9 +213,22 @@ const Dashboard = () => {
           field="image"
           header="Imagen"
           body={(data) =>
-            data.image ? <img src={data.image} alt={data.name} style={{ width: "50px", borderRadius: "8px" }} /> : "Sin imagen"
+            data.image ? (
+              <img
+                src={data.image}
+                alt={data.name}
+                style={{
+                  width: "100px",
+                  height: "100px",
+                  objectFit: "cover",
+                  borderRadius: "8px",
+                }}
+              />
+            ) : (
+              "Sin imagen"
+            )
           }
-        ></Column>
+        />
         <Column body={actionBodyTemplate} header="Acciones"></Column>
       </DataTable>
 

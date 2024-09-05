@@ -228,16 +228,17 @@ const Sales = () => {
             <h4 className="text-center">Ventas</h4>
             <Divider />
 
-            <div className="p-grid p-align-center p-justify-between p-mb-4">
-              <div className="p-col-12 p-md-6">
+            <div className="p-grid p-mb-4" style={{ display: "flex" }}>
+              <div style={{ marginRight: "10px" }}>
                 <Calendar value={startDate} onChange={(e) => setStartDate(e.value)} placeholder="Fecha Inicio" className="mb-2" showIcon />
               </div>
-              <div className="p-col-12 p-md-6">
+              <div style={{ marginRight: "10px" }}>
                 <Calendar value={endDate} onChange={(e) => setEndDate(e.value)} placeholder="Fecha Fin" className="mb-2" showIcon />
               </div>
+              <div style={{}}>
+                <Button label="Buscar" onClick={filterSalesByDate} className="p-mb-4" />
+              </div>
             </div>
-
-            <Button label="Buscar" onClick={filterSalesByDate} className="p-mb-4" />
 
             <DataTable
               value={filteredSales.length > 0 ? filteredSales : sales}

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { collection, addDoc, doc, getDoc, updateDoc } from "firebase/firestore";
 import { db, storage } from "../firebaseConfig";
-import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
 import { v4 as uuidv4 } from "uuid";
 import { InputText } from "primereact/inputtext";
 import { InputNumber } from "primereact/inputnumber";
@@ -11,7 +11,7 @@ import { Card } from "primereact/card";
 import { Toast } from "primereact/toast";
 import { FileUpload } from "primereact/fileupload";
 import { ProgressBar } from "primereact/progressbar";
-import { Dropdown } from "primereact/dropdown"; // Importar el Dropdown de PrimeReact
+import { Dropdown } from "primereact/dropdown";
 import "primeflex/primeflex.css";
 
 const UploadJewelry = () => {
@@ -33,7 +33,6 @@ const UploadJewelry = () => {
   const toast = useRef(null);
   const fileUploadRef = useRef(null);
 
-  // Opciones del dropdown para el campo "type"
   const typeOptions = [
     { label: "Anillo", value: "Anillo" },
     { label: "Anillo Cintillo", value: "Anillo Cintillo" },
@@ -86,12 +85,28 @@ const UploadJewelry = () => {
   const handleDropdownChange = (e) => {
     setFormData({
       ...formData,
-      type: e.value, // Asignar el valor del Dropdown al campo type
+      type: e.value,
     });
   };
 
   const handleImageChange = (e) => {
     setImageFile(e.files[0]);
+    console.log("Imagen seleccionada:", e.files[0]);
+  };
+
+  const handleDeleteImage = async () => {
+    try {
+      if (imageUrl) {
+        const imageRef = ref(storage, imageUrl);
+        await deleteObject(imageRef);
+        setImageUrl("");
+        setImageFile(null);
+        toast.current.show({ severity: "success", summary: "Imagen eliminada", life: 3000 });
+      }
+    } catch (error) {
+      setError("Error al eliminar la imagen: " + error.message);
+      toast.current.show({ severity: "error", summary: "Error", detail: error.message, life: 3000 });
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -100,73 +115,62 @@ const UploadJewelry = () => {
     setSuccess("");
     setUploadProgress(0);
 
+    console.log("Enviando formulario con imagen:", imageFile);
+
     try {
       let newImageUrl = imageUrl;
-
-      if (!imageFile) {
-        toast.current.show({
-          severity: "warn",
-          summary: "Aviso",
-          detail: "No se ha subido ninguna imagen. Se usará una URL por defecto.",
-          life: 3000,
-        });
-      }
 
       if (imageFile) {
         const imageRef = ref(storage, `images/${imageFile.name + uuidv4()}`);
         const uploadTask = uploadBytesResumable(imageRef, imageFile);
 
-        uploadTask.on(
-          "state_changed",
-          (snapshot) => {
-            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            setUploadProgress(progress);
-          },
-          (error) => {
-            setError("Error al subir la imagen: " + error.message);
-            toast.current.show({ severity: "error", summary: "Error", detail: error.message, life: 3000 });
-          },
-          async () => {
-            newImageUrl = await getDownloadURL(uploadTask.snapshot.ref);
-            setUploadProgress(100);
-          }
-        );
+        const snapshot = await new Promise((resolve, reject) => {
+          uploadTask.on(
+            "state_changed",
+            (snapshot) => {
+              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+              setUploadProgress(progress);
+              console.log(`Progreso de la carga: ${progress}%`);
+            },
+            (error) => {
+              setError("Error al subir la imagen: " + error.message);
+              toast.current.show({ severity: "error", summary: "Error", detail: error.message, life: 3000 });
+              reject(error);
+            },
+            () => {
+              resolve(uploadTask.snapshot);
+            }
+          );
+        });
+
+        newImageUrl = await getDownloadURL(snapshot.ref);
+        setImageUrl(newImageUrl);
+        setUploadProgress(100);
+        console.log("Imagen subida correctamente, URL:", newImageUrl);
       }
+
+      const jewelryData = {
+        name: formData.name || "Sin nombre",
+        type: formData.type || "Sin tipo",
+        purchasePrice: parseFloat(formData.purchasePrice) || 0,
+        salePrice: parseFloat(formData.salePrice) || 0,
+        quantity: parseInt(formData.quantity, 10) || 0,
+        image: newImageUrl || "URL de imagen por defecto",
+      };
 
       if (editing) {
         const jewelryRef = doc(db, "jewelry", id);
-        await updateDoc(jewelryRef, {
-          name: formData.name,
-          type: formData.type,
-          purchasePrice: parseFloat(formData.purchasePrice),
-          salePrice: parseFloat(formData.salePrice),
-          quantity: parseInt(formData.quantity, 10),
-          image: newImageUrl || "URL de imagen por defecto",
-        });
+        await updateDoc(jewelryRef, jewelryData);
         setSuccess("La joya fue actualizada con éxito.");
         toast.current.show({ severity: "success", summary: "Éxito", detail: "La joya fue actualizada con éxito", life: 3000 });
       } else {
-        await addDoc(collection(db, "jewelry"), {
-          name: formData.name || "Sin nombre",
-          type: formData.type || "Sin tipo",
-          purchasePrice: parseFloat(formData.purchasePrice) || 0,
-          salePrice: parseFloat(formData.salePrice) || 0,
-          quantity: parseInt(formData.quantity, 10) || 0,
-          image: newImageUrl || "URL de imagen por defecto",
-        });
+        await addDoc(collection(db, "jewelry"), jewelryData);
         setSuccess("La joya fue subida con éxito.");
         toast.current.show({ severity: "success", summary: "Éxito", detail: "La joya fue subida con éxito", life: 3000 });
       }
 
-      setFormData({
-        name: "",
-        type: "",
-        purchasePrice: "",
-        salePrice: "",
-        quantity: "",
-      });
+      // Restablecer solo la imagen sin afectar los demás campos
       setImageFile(null);
-      setImageUrl("");
       setUploadProgress(0);
 
       if (fileUploadRef.current) {
@@ -247,12 +251,23 @@ const UploadJewelry = () => {
                 onSelect={handleImageChange}
                 ref={fileUploadRef}
               />
-              {imageUrl && <img src={imageUrl} alt="Joya" width="100" className="mt-2" style={{ borderRadius: "8px" }} />}
+              {imageUrl && (
+                <div className="mt-2">
+                  <img src={imageUrl} alt="Joya" width="100" style={{ borderRadius: "8px" }} />
+                  <Button label="Eliminar Imagen" icon="pi pi-trash" className="p-button-danger mt-2" onClick={handleDeleteImage} />
+                </div>
+              )}
               {uploadProgress > 0 && <ProgressBar value={uploadProgress} className="mt-2" />}
             </div>
           </div>
 
-          <Button label={editing ? "Actualizar Joya" : "Subir Joya"} icon="pi pi-check" className="w-full" type="submit" />
+          <Button
+            label={editing ? "Actualizar Joya" : "Subir Joya"}
+            icon="pi pi-check"
+            className="w-full"
+            type="submit"
+            disabled={!imageFile && !imageUrl}
+          />
         </form>
       </Card>
     </div>
