@@ -68,22 +68,28 @@ const Sales = () => {
     const phoneNumber = `549${cleanPhoneNumber}`; // Asegurarse de agregar el prefijo +549 solo una vez
 
     let message;
+
+    // Mensaje para pagos incompletos (con cuotas restantes)
     if (updatedRemainingPayments > 0) {
+      const cuotaWord = updatedRemainingPayments === 1 ? "cuota" : "cuotas"; // Singular/plural
+      const pagoWord = paidInstallments === 1 ? "una cuota" : `${paidInstallments} cuotas`; // Singular/plural
+
       message = `Hola ${buyerName}, somos Las Marias.
-    
-      Queremos agradecerte por tu compra de "${items}".
-    
-      Has pagado una cuota de $${parsedTermAmount.toFixed(2)}. El valor total de tu compra es de $${parsedTotalSalePrice.toFixed(
-        2
-      )}. Hasta el momento, has abonado $${totalPaid.toFixed(2)}, y te faltan $${remainingAmount.toFixed(2)} para completar el pago.
-    
-      Quedan ${updatedRemainingPayments} cuotas de ${purchaseTerms}. Si tienes alguna duda, no dudes en contactarnos. Gracias por confiar en nosotros.`;
+  
+  Queremos agradecerte por tu compra de "${items}".
+  
+  Has pagado ${pagoWord} de $${parsedTermAmount.toFixed(2)} cada una. El valor total de tu compra es de $${parsedTotalSalePrice.toFixed(2)}.
+  
+  Hasta el momento, has abonado $${totalPaid.toFixed(2)}, y te faltan $${remainingAmount.toFixed(2)} para completar el pago.
+  
+  Te quedan ${updatedRemainingPayments} ${cuotaWord} por pagar. Si tienes alguna duda, no dudes en contactarnos. ¡Gracias por confiar en nosotros!`;
     } else {
+      // Mensaje cuando se completan todos los pagos
       message = `Hola ${buyerName}, somos Las Marias.
-    
-      ¡Enhorabuena! Has completado el pago total de tu compra de "${items}". Valor total: $${parsedTotalSalePrice.toFixed(2)}.
-    
-      Gracias por confiar en nosotros. Si necesitas más información o asistencia, no dudes en contactarnos. ¡Esperamos verte pronto!`;
+  
+  ¡Felicidades! Has completado el pago total de tu compra de "${items}". Valor total: $${parsedTotalSalePrice.toFixed(2)}.
+  
+  Gracias por confiar en nosotros. Si necesitas más información o asistencia, no dudes en contactarnos. ¡Esperamos verte pronto!`;
     }
 
     // Crear el enlace de WhatsApp con codificación de URL
