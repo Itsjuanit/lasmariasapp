@@ -30,35 +30,31 @@ const Profits = () => {
           id: doc.id,
           saleDate: doc.data().saleDate.toDate(),
           remainingPayments: doc.data().remainingPayments || doc.data().purchaseTerms,
+          paymentDates: doc.data().paymentDates || [],
         }));
 
         const sortedSales = salesData.sort((a, b) => b.saleDate - a.saleDate);
         setSales(sortedSales);
 
         const profitsByMonth = sortedSales.reduce((acc, sale) => {
-          const saleMonth = sale.saleDate.getMonth();
-          const saleYear = sale.saleDate.getFullYear();
-          const monthYearKey = `${saleYear}-${saleMonth + 1}`;
-          const profit = sale.salePrice - sale.purchasePrice;
+          sale.paymentDates.forEach((date) => {
+            const paymentMonth = new Date(date).getMonth();
+            const paymentYear = new Date(date).getFullYear();
+            const monthYearKey = `${paymentYear}-${paymentMonth + 1}`;
+            const paymentAmount = parseFloat(sale.termAmount); // Monto de cada pago
 
-          if (!acc[monthYearKey]) {
-            acc[monthYearKey] = { totalProfit: 0, sales: 0 };
-          }
+            if (!acc[monthYearKey]) {
+              acc[monthYearKey] = { totalProfit: 0, sales: 0 };
+            }
 
-          acc[monthYearKey].totalProfit += profit;
-          acc[monthYearKey].sales += 1;
+            acc[monthYearKey].totalProfit += paymentAmount;
+            acc[monthYearKey].sales += 1;
+          });
 
           return acc;
         }, {});
 
         setMonthlyProfits(profitsByMonth);
-
-        const currentMonth = new Date().getMonth();
-        const totalProfit = sortedSales
-          .filter((sale) => sale.saleDate.getMonth() === currentMonth)
-          .reduce((acc, sale) => acc + (sale.salePrice - sale.purchasePrice), 0);
-
-        setMonthlyProfit(totalProfit);
       } catch (error) {
         console.error("Error al obtener las ventas:", error);
       }
@@ -76,17 +72,54 @@ const Profits = () => {
     }
   };
 
+  const sendWhatsAppMessage = (buyerName, buyerPhone, remainingPayments, totalPayments) => {
+    const message =
+      remainingPayments > 0
+        ? `Hola ${buyerName}, te habla Las Marias. Pagaste tu cuota. Te quedan ${remainingPayments} plazos restantes.`
+        : `Hola ${buyerName}, te habla Las Marias. Pagaste todas tus cuotas. ¡Gracias por tu compra!`;
+
+    console.log(`Enviar mensaje de WhatsApp a ${buyerPhone}: ${message}`);
+  };
+
+  const updateMonthlyProfits = (paymentAmount, paymentDate) => {
+    const paymentMonth = paymentDate.getMonth();
+    const paymentYear = paymentDate.getFullYear();
+    const monthYearKey = `${paymentYear}-${paymentMonth + 1}`;
+
+    const updatedMonthlyProfits = { ...monthlyProfits };
+
+    if (!updatedMonthlyProfits[monthYearKey]) {
+      updatedMonthlyProfits[monthYearKey] = { totalProfit: 0, sales: 0 };
+    }
+
+    updatedMonthlyProfits[monthYearKey].totalProfit += paymentAmount;
+    updatedMonthlyProfits[monthYearKey].sales += 1;
+
+    setMonthlyProfits(updatedMonthlyProfits);
+  };
+
   const handlePayment = async (sale) => {
     const remainingPayments = sale.remainingPayments - 1;
-    const remainingAmount = (sale.salePrice * remainingPayments) / sale.purchaseTerms;
+    const currentPaymentDate = new Date();
+    const paymentAmount = sale.termAmount;
 
     try {
       const saleRef = doc(db, "sales", sale.id);
       await updateDoc(saleRef, {
         remainingPayments: remainingPayments > 0 ? remainingPayments : 0,
+        paymentDates: [...sale.paymentDates, currentPaymentDate],
       });
 
-      setSales(sales.map((s) => (s.id === sale.id ? { ...s, remainingPayments } : s)));
+      setSales(
+        sales.map((s) => (s.id === sale.id ? { ...s, remainingPayments, paymentDates: [...s.paymentDates, currentPaymentDate] } : s))
+      );
+
+      // Actualizar ganancias mensuales con el pago
+      updateMonthlyProfits(parseFloat(paymentAmount), currentPaymentDate);
+
+      // Enviar mensaje de WhatsApp
+      sendWhatsAppMessage(sale.buyerName, sale.buyerPhone, remainingPayments, sale.purchaseTerms);
+
       toast.current.show({
         severity: "success",
         summary: "Éxito",
@@ -138,6 +171,16 @@ const Profits = () => {
     </>
   );
 
+  const paymentDatesTemplate = (rowData) => {
+    return (
+      <>
+        {rowData.paymentDates.map((date, index) => (
+          <p key={index}>{new Date(date).toLocaleDateString()}</p>
+        ))}
+      </>
+    );
+  };
+
   return (
     <div className="container mx-auto mt-6">
       <Toast ref={toast} />
@@ -158,7 +201,7 @@ const Profits = () => {
           <i className="pi pi-exclamation-triangle p-mr-3" style={{ fontSize: "2rem" }} />
           {selectedSale && (
             <span>
-              ¿Estás seguro de que deseas eliminar la venta de <b>{selectedSale.name}</b>?
+              ¿Estás seguro de que deseas eliminar la venta de <b>{selectedSale.items}</b>?
             </span>
           )}
         </div>
@@ -182,20 +225,25 @@ const Profits = () => {
             <Button label="Buscar" onClick={filterSalesByDate} className="p-mb-4 w-full" />
 
             <DataTable value={filteredSales.length > 0 ? filteredSales : sales} responsiveLayout="scroll" style={{ marginTop: "20px" }}>
-              <Column field="name" header="Nombre"></Column>
+              <Column field="items" header="Artículos"></Column>
               <Column field="buyerName" header="Comprador"></Column>
-              <Column field="purchasePrice" header="Precio de Compra"></Column> {/* Columna de Precio de Compra */}
-              <Column field="salePrice" header="Precio de Venta"></Column>
+              <Column
+                field="totalPurchasePrice"
+                header="Precio de Compra"
+                body={(data) => (data.sold > 1 ? "N/A" : data.totalPurchasePrice)}
+              />
+              <Column field="totalSalePrice" header="Precio de Venta"></Column>
               <Column
                 field="remainingPayments"
                 header="Plazos Restantes"
                 body={(data) => `${data.remainingPayments}/${data.purchaseTerms}`}
               />
               <Column
-                field="salePrice"
+                field="termAmount"
                 header="Faltante por Pagar"
-                body={(data) => ((data.salePrice * data.remainingPayments) / data.purchaseTerms).toFixed(2)}
+                body={(data) => ((data.totalSalePrice * data.remainingPayments) / data.purchaseTerms).toFixed(2)}
               />
+              <Column field="paymentDates" header="Fechas de Pago" body={paymentDatesTemplate} />
               <Column body={actionBodyTemplate} header="Acciones"></Column>
             </DataTable>
           </Card>
