@@ -22,6 +22,13 @@ const NavigationMenu = () => {
       },
     },
     {
+      label: "Ventas",
+      icon: "pi pi-fw pi-credit-card",
+      command: () => {
+        navigate("/sales");
+      },
+    },
+    {
       label: "Ganancias",
       icon: "pi pi-fw pi-chart-line",
       command: () => {

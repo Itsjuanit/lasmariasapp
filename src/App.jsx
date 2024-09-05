@@ -4,14 +4,14 @@ import Login from "./components/Login";
 import Dashboard from "./components/Dashboard";
 import UploadJewelry from "./components/UploadJewelry";
 import Profits from "./components/Profits";
-import ProtectedRoute from "./components/ProtectedRoute"; // Ruta protegida
-import { AuthProvider, useAuth } from "./context/AuthContext"; // Proveedor y hook de autenticación
+import Sales from "./components/Sales";
+import ProtectedRoute from "./components/ProtectedRoute";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 import NavigationMenu from "./components/NavigationMenu"; // Componente de navegación
-
-import "primereact/resources/themes/saga-blue/theme.css"; // Tema de PrimeReact
-import "primereact/resources/primereact.min.css"; // Estilos de PrimeReact
-import "primeicons/primeicons.css"; // Iconos de PrimeIcons
-import "primeflex/primeflex.css"; // Utilidades de PrimeFlex
+import "primereact/resources/themes/saga-blue/theme.css";
+import "primereact/resources/primereact.min.css";
+import "primeicons/primeicons.css";
+import "primeflex/primeflex.css";
 
 function App() {
   return (
@@ -62,6 +62,14 @@ function MainApp() {
             element={
               <ProtectedRoute>
                 <UploadJewelry />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/sales"
+            element={
+              <ProtectedRoute>
+                <Sales />
               </ProtectedRoute>
             }
           />
