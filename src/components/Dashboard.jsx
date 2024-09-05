@@ -11,7 +11,8 @@ import { InputNumber } from "primereact/inputnumber";
 import { Toast } from "primereact/toast";
 import { Toolbar } from "primereact/toolbar";
 import { ConfirmDialog, confirmDialog } from "primereact/confirmdialog";
-import { FilterMatchMode } from "primereact/api"; // Importar los modos de filtro
+import { FilterMatchMode } from "primereact/api";
+import { Dropdown } from "primereact/dropdown";
 import { Tooltip } from "primereact/tooltip";
 
 const Dashboard = () => {
@@ -20,13 +21,19 @@ const Dashboard = () => {
   const [selectedJoya, setSelectedJoya] = useState(null);
   const [buyerName, setBuyerName] = useState("");
   const [newSalePrice, setNewSalePrice] = useState("");
-  const [purchaseTerms, setPurchaseTerms] = useState("");
+  const [purchaseTerms, setPurchaseTerms] = useState(1); // Valor por defecto como número
   const [filters, setFilters] = useState({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS }, // Configurar el filtro global
+    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
   });
-  const [globalFilterValue, setGlobalFilterValue] = useState(""); // Estado del valor de filtro global
+  const [globalFilterValue, setGlobalFilterValue] = useState("");
   const navigate = useNavigate();
   const toast = useRef(null);
+
+  const termOptions = [
+    { label: "Sin plazos", value: 1 },
+    { label: "2 plazos", value: 2 },
+    { label: "3 plazos", value: 3 },
+  ];
 
   // Obtener las joyas desde Firestore
   useEffect(() => {
@@ -37,7 +44,6 @@ const Dashboard = () => {
           ...doc.data(),
           id: doc.id,
         }));
-        console.log("Joyas obtenidas:", joyasData); // Verificar los datos cargados
         setJoyas(joyasData);
       } catch (error) {
         console.error("Error al obtener las joyas:", error);
@@ -61,7 +67,7 @@ const Dashboard = () => {
     setSelectedJoya(joya);
     setBuyerName("");
     setNewSalePrice("");
-    setPurchaseTerms("");
+    setPurchaseTerms(1); // Por defecto, seleccionar "Sin plazos"
     setOpenModal(true);
   };
 
@@ -76,6 +82,7 @@ const Dashboard = () => {
         const jewelryRef = doc(db, "jewelry", selectedJoya.id);
         const newQuantity = selectedJoya.quantity - 1;
         const finalSalePrice = newSalePrice ? parseFloat(newSalePrice) : selectedJoya.salePrice;
+        const termAmount = finalSalePrice / purchaseTerms; // Cálculo de cada cuota
 
         if (newQuantity >= 0) {
           await updateDoc(jewelryRef, { quantity: newQuantity });
@@ -86,7 +93,9 @@ const Dashboard = () => {
             purchasePrice: selectedJoya.purchasePrice,
             salePrice: finalSalePrice,
             buyerName: buyerName || "Desconocido",
-            purchaseTerms: purchaseTerms || "Sin plazos",
+            purchaseTerms: purchaseTerms, // Guardamos solo la cantidad de plazos
+            termAmount: termAmount.toFixed(2), // Guardamos el monto por cada plazo
+            remainingPayments: purchaseTerms, // Cantidad de pagos restantes
             sold: 1,
             saleDate: new Date(),
             idJoya: selectedJoya.id,
@@ -114,16 +123,14 @@ const Dashboard = () => {
     navigate("/upload");
   };
 
-  // Función para manejar el cambio en el filtro global
   const onGlobalFilterChange = (e) => {
     const value = e.target.value;
     let _filters = { ...filters };
     _filters["global"].value = value;
     setFilters(_filters);
-    setGlobalFilterValue(value); // Actualizar el estado del valor global
+    setGlobalFilterValue(value);
   };
 
-  // Crear el encabezado con el campo de filtro global incorporado
   const renderHeader = () => {
     return (
       <div className="table-header">
@@ -184,15 +191,15 @@ const Dashboard = () => {
       <Toolbar className="mb-4" left={<Button label="Agregar Joya" icon="pi pi-plus" onClick={handleAddJoya} />} />
 
       <DataTable
-        value={joyas} // Usa directamente las joyas
+        value={joyas}
         paginator
         rows={5}
         responsiveLayout="scroll"
         emptyMessage="No se encontraron joyas."
         rowsPerPageOptions={[5, 10, 25, 50]}
-        filters={filters} // Aplicar los filtros
-        globalFilterFields={["name", "type"]} // Definir los campos para el filtro global
-        header={header} // Usar el encabezado personalizado
+        filters={filters}
+        globalFilterFields={["name", "type"]}
+        header={header}
       >
         <Column field="name" header="Nombre" sortable></Column>
         <Column field="type" header="Tipo" sortable></Column>
@@ -219,8 +226,13 @@ const Dashboard = () => {
           <InputNumber id="salePrice" value={newSalePrice} onChange={(e) => setNewSalePrice(e.value)} />
         </div>
         <div className="p-field">
-          <label htmlFor="purchaseTerms">Plazos (opcional)</label>
-          <InputText id="purchaseTerms" value={purchaseTerms} onChange={(e) => setPurchaseTerms(e.target.value)} />
+          <label htmlFor="purchaseTerms">Plazos</label>
+          <Dropdown
+            value={purchaseTerms}
+            options={termOptions}
+            onChange={(e) => setPurchaseTerms(e.value)}
+            placeholder="Selecciona el número de plazos"
+          />
         </div>
         <div className="p-field">
           <Button label="Cancelar" icon="pi pi-times" className="p-button-text" onClick={handleCloseModal} />

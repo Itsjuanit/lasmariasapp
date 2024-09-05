@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { collection, getDocs, deleteDoc, doc } from "firebase/firestore";
+import { collection, getDocs, deleteDoc, doc, updateDoc } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
@@ -14,12 +14,12 @@ const Profits = () => {
   const [sales, setSales] = useState([]);
   const [filteredSales, setFilteredSales] = useState([]);
   const [monthlyProfit, setMonthlyProfit] = useState(0);
-  const [monthlyProfits, setMonthlyProfits] = useState({}); // Nuevo estado para almacenar ganancias por mes
+  const [monthlyProfits, setMonthlyProfits] = useState({});
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
-  const [selectedSale, setSelectedSale] = useState(null); // Para el Dialog
-  const [isDialogVisible, setDialogVisible] = useState(false); // Controla la visibilidad del Dialog
-  const toast = useRef(null); // Referencia para el Toast
+  const [selectedSale, setSelectedSale] = useState(null);
+  const [isDialogVisible, setDialogVisible] = useState(false);
+  const toast = useRef(null);
 
   useEffect(() => {
     const fetchSales = async () => {
@@ -29,20 +29,18 @@ const Profits = () => {
           ...doc.data(),
           id: doc.id,
           saleDate: doc.data().saleDate.toDate(),
+          remainingPayments: doc.data().remainingPayments || doc.data().purchaseTerms,
         }));
 
         const sortedSales = salesData.sort((a, b) => b.saleDate - a.saleDate);
         setSales(sortedSales);
 
-        // Calcular las ganancias mensuales
         const profitsByMonth = sortedSales.reduce((acc, sale) => {
-          const saleMonth = sale.saleDate.getMonth(); // Obtener el mes
-          const saleYear = sale.saleDate.getFullYear(); // Obtener el año
-          const monthYearKey = `${saleYear}-${saleMonth + 1}`; // Llave en formato "YYYY-MM"
-
+          const saleMonth = sale.saleDate.getMonth();
+          const saleYear = sale.saleDate.getFullYear();
+          const monthYearKey = `${saleYear}-${saleMonth + 1}`;
           const profit = sale.salePrice - sale.purchasePrice;
 
-          // Sumar la ganancia al mes correspondiente
           if (!acc[monthYearKey]) {
             acc[monthYearKey] = { totalProfit: 0, sales: 0 };
           }
@@ -53,7 +51,7 @@ const Profits = () => {
           return acc;
         }, {});
 
-        setMonthlyProfits(profitsByMonth); // Guardar las ganancias mensuales en el estado
+        setMonthlyProfits(profitsByMonth);
 
         const currentMonth = new Date().getMonth();
         const totalProfit = sortedSales
@@ -78,32 +76,71 @@ const Profits = () => {
     }
   };
 
-  const confirmDeleteSale = (sale) => {
-    setSelectedSale(sale); // Guardamos la venta seleccionada
-    setDialogVisible(true); // Mostramos el Dialog
+  const handlePayment = async (sale) => {
+    const remainingPayments = sale.remainingPayments - 1;
+    const remainingAmount = (sale.salePrice * remainingPayments) / sale.purchaseTerms;
+
+    try {
+      const saleRef = doc(db, "sales", sale.id);
+      await updateDoc(saleRef, {
+        remainingPayments: remainingPayments > 0 ? remainingPayments : 0,
+      });
+
+      setSales(sales.map((s) => (s.id === sale.id ? { ...s, remainingPayments } : s)));
+      toast.current.show({
+        severity: "success",
+        summary: "Éxito",
+        detail: `Pago de cuota registrado. Quedan ${remainingPayments} plazos`,
+        life: 3000,
+      });
+    } catch (error) {
+      console.error("Error al registrar el pago:", error);
+      toast.current.show({ severity: "error", summary: "Error", detail: "Error al registrar el pago", life: 3000 });
+    }
   };
 
-  const deleteSale = async () => {
+  const deleteSale = async (sale) => {
     try {
-      await deleteDoc(doc(db, "sales", selectedSale.id));
-      setSales(sales.filter((sale) => sale.id !== selectedSale.id));
-      setFilteredSales(filteredSales.filter((sale) => sale.id !== selectedSale.id));
-      setDialogVisible(false); // Ocultamos el Dialog
+      await deleteDoc(doc(db, "sales", sale.id));
+      setSales(sales.filter((s) => s.id !== sale.id));
+      setFilteredSales(filteredSales.filter((s) => s.id !== sale.id));
+      setDialogVisible(false);
 
-      // Mostramos el toast de éxito
       toast.current.show({ severity: "success", summary: "Éxito", detail: "Venta eliminada correctamente", life: 3000 });
     } catch (error) {
       console.error("Error al eliminar la venta:", error);
     }
   };
 
-  const deleteButton = (data) => {
-    return <Button label="Eliminar" icon="pi pi-trash" className="p-button-danger" onClick={() => confirmDeleteSale(data)} />;
+  const paymentButton = (sale) => (
+    <Button
+      label="Registrar Pago"
+      icon="pi pi-check"
+      className="p-button-success mr-2"
+      disabled={sale.remainingPayments <= 0}
+      onClick={() => handlePayment(sale)}
+    />
+  );
+
+  const deleteButton = (sale) => (
+    <Button label="Eliminar" icon="pi pi-trash" className="p-button-danger" onClick={() => confirmDeleteSale(sale)} />
+  );
+
+  const confirmDeleteSale = (sale) => {
+    setSelectedSale(sale);
+    setDialogVisible(true);
   };
+
+  const actionBodyTemplate = (sale) => (
+    <>
+      {paymentButton(sale)}
+      {deleteButton(sale)}
+    </>
+  );
 
   return (
     <div className="container mx-auto mt-6">
-      <Toast ref={toast} /> {/* Componente Toast */}
+      <Toast ref={toast} />
       <Dialog
         visible={isDialogVisible}
         style={{ width: "350px" }}
@@ -112,7 +149,7 @@ const Profits = () => {
         footer={
           <div>
             <Button label="No" icon="pi pi-times" onClick={() => setDialogVisible(false)} className="p-button-text" />
-            <Button label="Sí" icon="pi pi-check" onClick={deleteSale} autoFocus />
+            <Button label="Sí" icon="pi pi-check" onClick={() => deleteSale(selectedSale)} autoFocus />
           </div>
         }
         onHide={() => setDialogVisible(false)}
@@ -126,14 +163,13 @@ const Profits = () => {
           )}
         </div>
       </Dialog>
+
       <div className="p-grid">
-        {/* Columna izquierda: Tabla de ventas */}
         <div className="p-col-12 p-md-8">
           <Card>
             <h4 className="text-center">Ganancias por Joyas Vendidas</h4>
             <Divider />
 
-            {/* DatePickers para seleccionar el rango de fechas */}
             <div className="p-grid p-align-center p-justify-between p-mb-4">
               <div className="p-col-12 p-md-6">
                 <Calendar value={startDate} onChange={(e) => setStartDate(e.value)} placeholder="Fecha Inicio" className="w-full" />
@@ -148,27 +184,29 @@ const Profits = () => {
             <DataTable value={filteredSales.length > 0 ? filteredSales : sales} responsiveLayout="scroll" style={{ marginTop: "20px" }}>
               <Column field="name" header="Nombre"></Column>
               <Column field="buyerName" header="Comprador"></Column>
-              <Column field="purchasePrice" header="Precio de Compra"></Column>
+              <Column field="purchasePrice" header="Precio de Compra"></Column> {/* Columna de Precio de Compra */}
               <Column field="salePrice" header="Precio de Venta"></Column>
-              <Column field="profit" header="Ganancia" body={(data) => data.salePrice - data.purchasePrice}></Column>
               <Column
-                field="saleDate"
-                header="Fecha de Venta"
-                body={(data) => `${data.saleDate.toLocaleDateString()} ${data.saleDate.toLocaleTimeString()}`}
-              ></Column>
-              <Column body={deleteButton} header="Eliminar"></Column>
+                field="remainingPayments"
+                header="Plazos Restantes"
+                body={(data) => `${data.remainingPayments}/${data.purchaseTerms}`}
+              />
+              <Column
+                field="salePrice"
+                header="Faltante por Pagar"
+                body={(data) => ((data.salePrice * data.remainingPayments) / data.purchaseTerms).toFixed(2)}
+              />
+              <Column body={actionBodyTemplate} header="Acciones"></Column>
             </DataTable>
           </Card>
         </div>
 
-        {/* Columna derecha: Ganancia mensual */}
         <div className="p-col-12 p-md-4">
           <Card>
             <h4 className="text-center">Ganancia del Mes</h4>
             <Divider />
             <div className="text-center text-xl">${monthlyProfit.toFixed(2)}</div>
 
-            {/* Mostrar las ganancias por cada mes */}
             <h4 className="text-center mt-4">Ganancias por Mes</h4>
             <ul>
               {Object.keys(monthlyProfits).map((monthYearKey) => (
