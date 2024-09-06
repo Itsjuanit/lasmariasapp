@@ -236,6 +236,7 @@ const Dashboard = () => {
         setPurchaseTerms={setPurchaseTerms}
         termOptions={termOptions}
         handleConfirmSale={handleConfirmSale}
+        selectedJoyas={selectedJoyas}
       />
 
       <ConfirmDialog />
