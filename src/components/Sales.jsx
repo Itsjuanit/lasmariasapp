@@ -9,6 +9,7 @@ import { Button } from "primereact/button";
 import { Divider } from "primereact/divider";
 import { Toast } from "primereact/toast";
 import { Dialog } from "primereact/dialog";
+import { InputText } from "primereact/inputtext";
 
 const Sales = () => {
   const [sales, setSales] = useState([]);
@@ -17,6 +18,10 @@ const Sales = () => {
   const [endDate, setEndDate] = useState(null);
   const [selectedSale, setSelectedSale] = useState(null);
   const [isDialogVisible, setDialogVisible] = useState(false);
+  const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [filters, setFilters] = useState({
+    global: { value: null, matchMode: "contains" },
+  });
   const toast = useRef(null);
 
   useEffect(() => {
@@ -30,7 +35,11 @@ const Sales = () => {
           remainingPayments: doc.data().remainingPayments || doc.data().purchaseTerms,
           paymentDates: doc.data().paymentDates ? doc.data().paymentDates.map((date) => date.toDate()) : [],
         }));
-        setSales(salesData);
+
+        // Ordenar por fecha de venta en orden descendente
+        const sortedSales = salesData.sort((a, b) => b.saleDate - a.saleDate);
+
+        setSales(sortedSales); // Guardar las ventas ordenadas
       } catch (error) {
         console.error("Error al obtener las ventas:", error);
       }
@@ -202,6 +211,28 @@ const Sales = () => {
     return `$${parseFloat(rowData.totalSalePrice).toFixed(2)}`;
   };
 
+  const onGlobalFilterChange = (e) => {
+    const value = e.target.value;
+    let _filters = { ...filters };
+    _filters["global"].value = value;
+    setFilters(_filters);
+    setGlobalFilterValue(value);
+  };
+  const renderHeader = () => {
+    return (
+      <div className="table-header">
+        <span className="p-input-icon-right">
+          <InputText
+            value={globalFilterValue}
+            onChange={onGlobalFilterChange}
+            placeholder="Buscar por nombre o tipo"
+            style={{ width: "250px" }}
+          />
+        </span>
+      </div>
+    );
+  };
+
   return (
     <div className="container mx-auto mt-6">
       <Toast ref={toast} />
@@ -252,9 +283,13 @@ const Sales = () => {
               style={{ marginTop: "20px" }}
               rowsPerPageOptions={[5, 10, 25, 50]}
               rows={10}
+              paginator
+              filters={filters}
+              globalFilterFields={["buyerName", "items"]}
+              header={renderHeader()}
             >
               <Column field="items" header="Artículos"></Column>
-              <Column field="buyerName" header="Cliente"></Column>
+              <Column field="buyerName" header="Cliente" sortable></Column>
               <Column field="totalPurchasePrice" header="P.Compra" body={purchasePriceTemplate} />
               <Column field="totalSalePrice" header="P.Venta" body={salePriceTemplate} />
               <Column field="remainingPayments" header="Cuotas" body={(data) => `${data.remainingPayments}/${data.purchaseTerms}`} />
