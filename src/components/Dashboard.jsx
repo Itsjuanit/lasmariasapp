@@ -5,20 +5,19 @@ import { useNavigate } from "react-router-dom";
 import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { Dialog } from "primereact/dialog";
-import { InputText } from "primereact/inputtext";
 import { Toast } from "primereact/toast";
 import { Toolbar } from "primereact/toolbar";
 import { ConfirmDialog, confirmDialog } from "primereact/confirmdialog";
-import { Dropdown } from "primereact/dropdown";
+import { InputText } from "primereact/inputtext";
+import ConfirmSaleDialog from "./ConfirmSaleDialog"; // Importar el nuevo componente
 
 const Dashboard = () => {
   const [joyas, setJoyas] = useState([]);
-  const [selectedJoyas, setSelectedJoyas] = useState([]); // Para selección múltiple
+  const [selectedJoyas, setSelectedJoyas] = useState([]);
   const [openModal, setOpenModal] = useState(false);
   const [buyerName, setBuyerName] = useState("");
-  const [buyerPhone, setBuyerPhone] = useState(""); // Nuevo input para número de celular
-  const [purchaseTerms, setPurchaseTerms] = useState(1); // Valor por defecto como número
+  const [buyerPhone, setBuyerPhone] = useState("");
+  const [purchaseTerms, setPurchaseTerms] = useState(1);
   const [filters, setFilters] = useState({
     global: { value: null, matchMode: "contains" },
   });
@@ -63,17 +62,15 @@ const Dashboard = () => {
   const handleConfirmSale = async () => {
     if (selectedJoyas.length > 0) {
       try {
-        // Sumar el precio total de los artículos seleccionados
         const totalSalePrice = selectedJoyas.reduce((acc, joya) => acc + joya.salePrice, 0);
-        const totalPurchasePrice = selectedJoyas.reduce((acc, joya) => acc + joya.purchasePrice, 0); // Sumar precios de compra
-        const termAmount = totalSalePrice / purchaseTerms; // Cálculo del valor por cuota
-        const itemNames = selectedJoyas.map((joya) => joya.name).join(", "); // Nombres de todos los artículos vendidos
+        const totalPurchasePrice = selectedJoyas.reduce((acc, joya) => acc + joya.purchasePrice, 0);
+        const termAmount = totalSalePrice / purchaseTerms;
+        const itemNames = selectedJoyas.map((joya) => joya.name).join(", ");
 
-        // Crear un solo registro de venta
         await addDoc(collection(db, "sales"), {
-          items: itemNames, // Nombres de los artículos vendidos
+          items: itemNames,
           buyerName: buyerName || "Desconocido",
-          buyerPhone: buyerPhone, // Guardar número de celular
+          buyerPhone: buyerPhone,
           purchaseTerms: purchaseTerms,
           totalSalePrice: totalSalePrice,
           totalPurchasePrice: totalPurchasePrice,
@@ -83,22 +80,18 @@ const Dashboard = () => {
           saleDate: new Date(),
         });
 
-        // Actualizar el stock de cada artículo
         for (const joya of selectedJoyas) {
           const jewelryRef = doc(db, "jewelry", joya.id);
           const newQuantity = joya.quantity - 1;
 
           if (newQuantity >= 0) {
-            // Actualizar la cantidad solo si hay stock disponible
             await updateDoc(jewelryRef, { quantity: newQuantity });
-            setJoyas((prevJoyas) => prevJoyas.map((j) => (j.id === joya.id ? { ...j, quantity: newQuantity } : j))); // Actualizar estado de joyas en tiempo real
+            setJoyas((prevJoyas) => prevJoyas.map((j) => (j.id === joya.id ? { ...j, quantity: newQuantity } : j)));
           }
         }
 
-        // Mostrar mensaje de éxito
         toast.current.show({ severity: "success", summary: "Éxito", detail: "Venta registrada correctamente", life: 3000 });
 
-        // Limpiar selección y cerrar modal
         setSelectedJoyas([]);
         setOpenModal(false);
       } catch (error) {
@@ -141,7 +134,7 @@ const Dashboard = () => {
           icon="pi pi-check"
           className="p-button-success"
           onClick={() => setOpenModal(true)}
-          disabled={selectedJoyas.length === 0} // Solo habilitar si hay artículos seleccionados
+          disabled={selectedJoyas.length === 0}
         />
       </div>
     );
@@ -161,10 +154,10 @@ const Dashboard = () => {
           icon="pi pi-shopping-cart"
           className="p-button-rounded p-button-success mr-1"
           onClick={() => {
-            setSelectedJoyas([rowData]); // Seleccionar solo un artículo
-            setOpenModal(true); // Abrir el diálogo de venta
+            setSelectedJoyas([rowData]);
+            setOpenModal(true);
           }}
-          disabled={rowData.quantity <= 0} // Deshabilitar si no hay stock
+          disabled={rowData.quantity <= 0}
           tooltip="Vender"
         />
         <Button
@@ -232,42 +225,18 @@ const Dashboard = () => {
         <Column body={actionBodyTemplate} header="Acciones"></Column>
       </DataTable>
 
-      <Dialog
+      <ConfirmSaleDialog
         visible={openModal}
-        style={{ width: "450px" }}
-        header="Confirmar Venta"
-        modal
-        className="p-fluid"
         onHide={() => setOpenModal(false)}
-      >
-        <div className="p-field">
-          <label htmlFor="buyerName">Nombre del Comprador</label>
-          <InputText id="buyerName" value={buyerName} onChange={(e) => setBuyerName(e.target.value)} />
-        </div>
-        <div className="p-field">
-          <label htmlFor="buyerPhone">Número de Celular</label>
-          <InputText id="buyerPhone" value={buyerPhone} onChange={(e) => setBuyerPhone(e.target.value)} />
-        </div>
-        <div className="p-field">
-          <label htmlFor="purchaseTerms">Cuotas</label>
-          <Dropdown
-            value={purchaseTerms}
-            options={termOptions}
-            onChange={(e) => setPurchaseTerms(e.value)}
-            placeholder="Selecciona el número de cuotas"
-          />
-        </div>
-        <div className="p-field">
-          <Button
-            label="Cancelar"
-            severity="danger"
-            icon="pi pi-times"
-            className="p-button-text mb-2 mt-2"
-            onClick={() => setOpenModal(false)}
-          />
-          <Button label="Confirmar" severity="success" icon="pi pi-check" className="p-button-tex" onClick={handleConfirmSale} />
-        </div>
-      </Dialog>
+        buyerName={buyerName}
+        setBuyerName={setBuyerName}
+        buyerPhone={buyerPhone}
+        setBuyerPhone={setBuyerPhone}
+        purchaseTerms={purchaseTerms}
+        setPurchaseTerms={setPurchaseTerms}
+        termOptions={termOptions}
+        handleConfirmSale={handleConfirmSale}
+      />
 
       <ConfirmDialog />
     </div>
