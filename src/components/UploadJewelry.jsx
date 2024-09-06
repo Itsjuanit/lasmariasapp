@@ -261,13 +261,7 @@ const UploadJewelry = () => {
             </div>
           </div>
 
-          <Button
-            label={editing ? "Actualizar Joya" : "Subir Joya"}
-            icon="pi pi-check"
-            className="w-full"
-            type="submit"
-            disabled={!imageFile && !imageUrl}
-          />
+          <Button label={editing ? "Actualizar Joya" : "Subir Joya"} icon="pi pi-check" className="w-full" type="submit" />
         </form>
       </Card>
     </div>
