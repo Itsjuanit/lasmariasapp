@@ -16,6 +16,8 @@ const Sales = () => {
   const [filteredSales, setFilteredSales] = useState([]);
   const [selectedSale, setSelectedSale] = useState(null);
   const [isDialogVisible, setDialogVisible] = useState(false);
+  const [isEditDialogVisible, setEditDialogVisible] = useState(false);
+  const [newSaleName, setNewSaleName] = useState("");
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState({
     global: { value: null, matchMode: "contains" },
@@ -34,7 +36,7 @@ const Sales = () => {
           paymentDates: doc.data().paymentDates ? doc.data().paymentDates.map((date) => date.toDate()) : [],
         }));
         const sortedSales = salesData.sort((a, b) => b.saleDate - a.saleDate);
-        setSales(sortedSales); // Guardar las ventas ordenadas
+        setSales(sortedSales);
       } catch (error) {
         console.error("Error al obtener las ventas:", error);
       }
@@ -73,7 +75,7 @@ const Sales = () => {
         life: 3000,
       });
 
-      const whatsappLink = createWhatsAppLink(sale, updatedRemainingPayments); // Usar la función de utils
+      const whatsappLink = createWhatsAppLink(sale, updatedRemainingPayments);
       window.open(whatsappLink, "_blank");
     } catch (error) {
       console.error("Error al registrar el pago:", error);
@@ -99,6 +101,41 @@ const Sales = () => {
     setDialogVisible(true);
   };
 
+  const handleEditSale = (sale) => {
+    setSelectedSale(sale);
+    setNewSaleName(sale.buyerName); // Asignar el nombre actual del comprador para editar
+    setEditDialogVisible(true);
+  };
+
+  const updateSaleName = async () => {
+    try {
+      const saleRef = doc(db, "sales", selectedSale.id);
+      await updateDoc(saleRef, {
+        buyerName: newSaleName, // Actualizar el nombre del comprador
+      });
+
+      // Actualizar el estado local
+      setSales(sales.map((s) => (s.id === selectedSale.id ? { ...s, buyerName: newSaleName } : s)));
+
+      toast.current.show({
+        severity: "success",
+        summary: "Éxito",
+        detail: "Nombre del comprador actualizado correctamente",
+        life: 3000,
+      });
+
+      setEditDialogVisible(false);
+    } catch (error) {
+      console.error("Error al actualizar el nombre del comprador:", error);
+      toast.current.show({
+        severity: "error",
+        summary: "Error",
+        detail: "No se pudo actualizar el nombre del comprador",
+        life: 3000,
+      });
+    }
+  };
+
   const paymentButton = (sale) => (
     <Button
       label="Pago"
@@ -113,9 +150,14 @@ const Sales = () => {
     <Button label="Eliminar" icon="pi pi-trash" className="p-button-danger mt-1" onClick={() => confirmDeleteSale(sale)} />
   );
 
+  const editButton = (sale) => (
+    <Button label="Editar" icon="pi pi-pencil" className="p-button-warning mt-1" onClick={() => handleEditSale(sale)} />
+  );
+
   const actionBodyTemplate = (sale) => (
     <>
       {paymentButton(sale)}
+      {editButton(sale)}
       {deleteButton(sale)}
     </>
   );
@@ -128,23 +170,8 @@ const Sales = () => {
     </>
   );
 
-  const purchasePriceTemplate = (rowData) => {
-    const itemsArray = typeof rowData.items === "string" ? rowData.items.split(",") : rowData.items;
-    const itemCount = itemsArray.length;
-    console.log("Artículos:", itemsArray, "Cantidad:", itemCount, "Precio de compra:", rowData.totalPurchasePrice);
-    if (itemCount > 1) {
-      return "N/A";
-    } else if (itemCount === 1 && rowData.totalPurchasePrice) {
-      return `$${rowData.totalPurchasePrice.toFixed(2)}`;
-    } else {
-      return "N/A";
-    }
-  };
-
   const saleDateTemplate = (rowData) => new Date(rowData.saleDate).toLocaleDateString();
-  const salePriceTemplate = (rowData) => {
-    return `$${parseFloat(rowData.totalSalePrice).toFixed(2)}`;
-  };
+  const salePriceTemplate = (rowData) => `$${parseFloat(rowData.totalSalePrice).toFixed(2)}`;
 
   const onGlobalFilterChange = (e) => {
     const value = e.target.value;
@@ -153,6 +180,7 @@ const Sales = () => {
     setFilters(_filters);
     setGlobalFilterValue(value);
   };
+
   const renderHeader = () => {
     return (
       <div className="table-header">
@@ -171,6 +199,28 @@ const Sales = () => {
   return (
     <div className="container mx-auto mt-6">
       <Toast ref={toast} />
+
+      {/* Diálogo de edición */}
+      <Dialog
+        visible={isEditDialogVisible}
+        style={{ width: "450px" }}
+        header="Editar Venta"
+        modal
+        onHide={() => setEditDialogVisible(false)}
+        footer={
+          <>
+            <Button label="Cancelar" icon="pi pi-times" onClick={() => setEditDialogVisible(false)} className="p-button-text" />
+            <Button label="Guardar" icon="pi pi-check" onClick={updateSaleName} />
+          </>
+        }
+      >
+        <div className="p-field">
+          <label htmlFor="saleName">Nombre del comprador</label>
+          <InputText id="saleName" value={newSaleName} onChange={(e) => setNewSaleName(e.target.value)} style={{ width: "100%" }} />
+        </div>
+      </Dialog>
+
+      {/* Diálogo de eliminación */}
       <Dialog
         visible={isDialogVisible}
         style={{ width: "350px" }}
@@ -213,7 +263,7 @@ const Sales = () => {
             >
               <Column field="items" header="Artículos"></Column>
               <Column field="buyerName" header="Cliente" sortable></Column>
-              <Column field="totalPurchasePrice" header="P.Compra" body={purchasePriceTemplate} />
+              <Column field="totalPurchasePrice" header="P.Compra" body={salePriceTemplate} />
               <Column field="totalSalePrice" header="P.Venta" body={salePriceTemplate} />
               <Column field="remainingPayments" header="Cuotas" body={(data) => `${data.remainingPayments}/${data.purchaseTerms}`} />
               <Column field="saleDate" header="Fecha de Ingreso" body={saleDateTemplate} />
