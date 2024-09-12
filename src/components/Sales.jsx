@@ -267,7 +267,7 @@ const Sales = () => {
               <Column field="totalSalePrice" header="P.Venta" body={salePriceTemplate} />
               <Column field="remainingPayments" header="Cuotas" body={(data) => `${data.remainingPayments}/${data.purchaseTerms}`} />
               <Column field="saleDate" header="Fecha de Ingreso" body={saleDateTemplate} />
-              <Column field="paymentDates" header="Fechas de Pago" body={paymentDatesTemplate} />
+              <Column field="paymentDates" header="Fechas de Pago" body={paymentDatesTemplate} sortable />
               <Column body={actionBodyTemplate} header="Acciones"></Column>
             </DataTable>
           </Card>
