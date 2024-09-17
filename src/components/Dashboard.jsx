@@ -29,6 +29,7 @@ const Dashboard = () => {
     { label: "Sin cuotas", value: 1 },
     { label: "2 cuotas", value: 2 },
     { label: "3 cuotas", value: 3 },
+    { label: "Cuota flexible", value: -1 }, // Nueva opción
   ];
 
   // Obtener las joyas desde Firestore
@@ -64,7 +65,7 @@ const Dashboard = () => {
       try {
         const totalSalePrice = selectedJoyas.reduce((acc, joya) => acc + joya.salePrice, 0);
         const totalPurchasePrice = selectedJoyas.reduce((acc, joya) => acc + joya.purchasePrice, 0);
-        const termAmount = totalSalePrice / purchaseTerms;
+        let termAmount = purchaseTerms === -1 ? 0 : (totalSalePrice / purchaseTerms).toFixed(2); // Si es flexible, no calcular la cuota fija
         const itemNames = selectedJoyas.map((joya) => joya.name).join(", ");
 
         await addDoc(collection(db, "sales"), {
@@ -74,8 +75,8 @@ const Dashboard = () => {
           purchaseTerms: purchaseTerms,
           totalSalePrice: totalSalePrice,
           totalPurchasePrice: totalPurchasePrice,
-          termAmount: termAmount.toFixed(2),
-          remainingPayments: purchaseTerms,
+          termAmount: termAmount,
+          remainingPayments: purchaseTerms === -1 ? "Cuota flexible" : purchaseTerms, // Indicar flexible
           sold: selectedJoyas.length,
           saleDate: new Date(),
         });

@@ -13,11 +13,12 @@ import { createWhatsAppLink } from "../utils/whatsappUtils";
 
 const Sales = () => {
   const [sales, setSales] = useState([]);
-  const [filteredSales, setFilteredSales] = useState([]);
   const [selectedSale, setSelectedSale] = useState(null);
   const [isDialogVisible, setDialogVisible] = useState(false);
   const [isEditDialogVisible, setEditDialogVisible] = useState(false);
+  const [isPaymentDialogVisible, setPaymentDialogVisible] = useState(false);
   const [newSaleName, setNewSaleName] = useState("");
+  const [paymentAmount, setPaymentAmount] = useState(0);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState({
     global: { value: null, matchMode: "contains" },
@@ -45,14 +46,24 @@ const Sales = () => {
     fetchSales();
   }, []);
 
-  const handlePayment = async (sale) => {
-    const updatedRemainingPayments = sale.remainingPayments - 1;
+  const handlePayment = async (sale, paymentAmount = 0) => {
+    let updatedRemainingPayments;
+
+    if (sale.purchaseTerms === -1) {
+      // Cuotas flexibles: el cliente paga cualquier cantidad
+      const newTotalSalePrice = sale.totalSalePrice - paymentAmount; // Resta del total
+      updatedRemainingPayments = newTotalSalePrice > 0 ? newTotalSalePrice : 0;
+    } else {
+      // Cuotas fijas
+      updatedRemainingPayments = sale.remainingPayments - 1;
+    }
+
     const currentPaymentDate = new Date();
 
     try {
       const saleRef = doc(db, "sales", sale.id);
       await updateDoc(saleRef, {
-        remainingPayments: updatedRemainingPayments > 0 ? updatedRemainingPayments : 0,
+        remainingPayments: updatedRemainingPayments,
         paymentDates: [...sale.paymentDates, currentPaymentDate],
       });
 
@@ -61,7 +72,7 @@ const Sales = () => {
           s.id === sale.id
             ? {
                 ...s,
-                remainingPayments: updatedRemainingPayments > 0 ? updatedRemainingPayments : 0,
+                remainingPayments: updatedRemainingPayments,
                 paymentDates: [...s.paymentDates, currentPaymentDate],
               }
             : s
@@ -71,7 +82,10 @@ const Sales = () => {
       toast.current.show({
         severity: "success",
         summary: "Éxito",
-        detail: `Pago de cuota registrado. Quedan ${updatedRemainingPayments} cuotas`,
+        detail:
+          sale.purchaseTerms === -1
+            ? `Pago de ${paymentAmount} registrado. Restante: ${updatedRemainingPayments}`
+            : `Pago de cuota registrado. Quedan ${updatedRemainingPayments} cuotas`,
         life: 3000,
       });
 
@@ -87,7 +101,6 @@ const Sales = () => {
     try {
       await deleteDoc(doc(db, "sales", sale.id));
       setSales(sales.filter((s) => s.id !== sale.id));
-      setFilteredSales(filteredSales.filter((s) => s.id !== sale.id));
       setDialogVisible(false);
 
       toast.current.show({ severity: "success", summary: "Éxito", detail: "Venta eliminada correctamente", life: 3000 });
@@ -103,7 +116,7 @@ const Sales = () => {
 
   const handleEditSale = (sale) => {
     setSelectedSale(sale);
-    setNewSaleName(sale.buyerName); // Asignar el nombre actual del comprador para editar
+    setNewSaleName(sale.buyerName);
     setEditDialogVisible(true);
   };
 
@@ -111,10 +124,9 @@ const Sales = () => {
     try {
       const saleRef = doc(db, "sales", selectedSale.id);
       await updateDoc(saleRef, {
-        buyerName: newSaleName, // Actualizar el nombre del comprador
+        buyerName: newSaleName,
       });
 
-      // Actualizar el estado local
       setSales(sales.map((s) => (s.id === selectedSale.id ? { ...s, buyerName: newSaleName } : s)));
 
       toast.current.show({
@@ -141,8 +153,15 @@ const Sales = () => {
       label="Pago"
       icon="pi pi-check"
       className="p-button-success mr-2"
-      disabled={sale.remainingPayments <= 0}
-      onClick={() => handlePayment(sale)}
+      disabled={sale.remainingPayments <= 0 && sale.purchaseTerms !== -1}
+      onClick={() => {
+        setSelectedSale(sale);
+        if (sale.purchaseTerms === -1) {
+          setPaymentDialogVisible(true);
+        } else {
+          handlePayment(sale);
+        }
+      }}
     />
   );
 
@@ -173,6 +192,16 @@ const Sales = () => {
   const saleDateTemplate = (rowData) => new Date(rowData.saleDate).toLocaleDateString();
   const salePriceTemplate = (rowData) => `$${parseFloat(rowData.totalSalePrice).toFixed(2)}`;
 
+  // Columna de Cuotas, muestra N/A para cuotas flexibles
+  const purchaseTermsTemplate = (rowData) => {
+    return rowData.purchaseTerms === -1 ? "N/A" : `${rowData.remainingPayments}/${rowData.purchaseTerms}`;
+  };
+
+  // Columna para mostrar el monto restante solo para cuotas flexibles
+  const remainingAmountTemplate = (rowData) => {
+    return rowData.purchaseTerms === -1 ? `$${parseFloat(rowData.remainingPayments).toFixed(2)}` : null;
+  };
+
   const onGlobalFilterChange = (e) => {
     const value = e.target.value;
     let _filters = { ...filters };
@@ -196,11 +225,24 @@ const Sales = () => {
     );
   };
 
+  const paymentDialogFooter = (
+    <>
+      <Button label="Cancelar" icon="pi pi-times" onClick={() => setPaymentDialogVisible(false)} className="p-button-text" />
+      <Button
+        label="Pagar"
+        icon="pi pi-check"
+        onClick={() => {
+          handlePayment(selectedSale, paymentAmount);
+          setPaymentDialogVisible(false);
+        }}
+      />
+    </>
+  );
+
   return (
     <div className="container mx-auto mt-6">
       <Toast ref={toast} />
 
-      {/* Diálogo de edición */}
       <Dialog
         visible={isEditDialogVisible}
         style={{ width: "450px" }}
@@ -220,7 +262,6 @@ const Sales = () => {
         </div>
       </Dialog>
 
-      {/* Diálogo de eliminación */}
       <Dialog
         visible={isDialogVisible}
         style={{ width: "350px" }}
@@ -244,6 +285,24 @@ const Sales = () => {
         </div>
       </Dialog>
 
+      <Dialog
+        header="Pagar cuota flexible"
+        visible={isPaymentDialogVisible}
+        style={{ width: "450px" }}
+        footer={paymentDialogFooter}
+        onHide={() => setPaymentDialogVisible(false)}
+      >
+        <div className="p-field">
+          <label htmlFor="paymentAmount">Monto del pago</label>
+          <InputText
+            id="paymentAmount"
+            value={paymentAmount}
+            onChange={(e) => setPaymentAmount(parseFloat(e.target.value))}
+            placeholder="Ingresa el monto del pago"
+          />
+        </div>
+      </Dialog>
+
       <div className="p-grid">
         <div className="p-col-12">
           <Card>
@@ -251,7 +310,7 @@ const Sales = () => {
             <Divider />
 
             <DataTable
-              value={filteredSales.length > 0 ? filteredSales : sales}
+              value={sales}
               responsiveLayout="scroll"
               style={{ marginTop: "20px" }}
               rowsPerPageOptions={[5, 10, 25, 50]}
@@ -265,7 +324,14 @@ const Sales = () => {
               <Column field="buyerName" header="Cliente" sortable></Column>
               <Column field="totalPurchasePrice" header="P.Compra" body={salePriceTemplate} />
               <Column field="totalSalePrice" header="P.Venta" body={salePriceTemplate} />
-              <Column field="remainingPayments" header="Cuotas" body={(data) => `${data.remainingPayments}/${data.purchaseTerms}`} />
+              <Column field="remainingPayments" header="Cuotas" body={purchaseTermsTemplate} />
+              {/* Mostrar monto restante solo si es cuota flexible */}
+              <Column
+                field="remainingPayments"
+                header="Monto Restante"
+                body={remainingAmountTemplate}
+                style={{ display: sales.some((sale) => sale.purchaseTerms === -1) ? "table-cell" : "none" }}
+              />
               <Column field="saleDate" header="Fecha de Ingreso" body={saleDateTemplate} />
               <Column field="paymentDates" header="Fechas de Pago" body={paymentDatesTemplate} sortable />
               <Column body={actionBodyTemplate} header="Acciones"></Column>
