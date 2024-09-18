@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { collection, getDocs, updateDoc, deleteDoc, doc } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import { DataTable } from "primereact/datatable";
@@ -14,10 +14,12 @@ import { useSales } from "../context/SalesContext";
 
 const Sales = () => {
   const { sales, setSales } = useSales();
-  const [selectedSale, setSelectedSale] = useState(null);
-  const [isDialogVisible, setDialogVisible] = useState(false);
-  const [isEditDialogVisible, setEditDialogVisible] = useState(false);
-  const [isPaymentDialogVisible, setPaymentDialogVisible] = useState(false);
+  const [dialogState, setDialogState] = useState({
+    isDialogVisible: false,
+    isEditDialogVisible: false,
+    isPaymentDialogVisible: false,
+    selectedSale: null,
+  });
   const [newSaleName, setNewSaleName] = useState("");
   const [paymentAmount, setPaymentAmount] = useState(0);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
@@ -26,118 +28,114 @@ const Sales = () => {
   });
   const toast = useRef(null);
 
-  useEffect(() => {
-    const fetchSales = async () => {
-      try {
-        const querySnapshot = await getDocs(collection(db, "sales"));
-        const salesData = querySnapshot.docs.map((doc) => ({
-          ...doc.data(),
-          id: doc.id,
-          saleDate: doc.data().saleDate.toDate(),
-          remainingPayments: doc.data().remainingPayments || doc.data().purchaseTerms,
-          paymentHistory: doc.data().paymentHistory || [], // Inicializar paymentHistory como un array vacío si no existe
-          paymentDates: doc.data().paymentDates ? doc.data().paymentDates.map((date) => date.toDate()) : [],
-        }));
-        const sortedSales = salesData.sort((a, b) => b.saleDate - a.saleDate);
-        setSales(sortedSales); // Actualizar el contexto global con las ventas
-      } catch (error) {
-        console.error("Error al obtener las ventas:", error);
-      }
-    };
-
-    fetchSales();
+  const fetchSales = useCallback(async () => {
+    try {
+      const querySnapshot = await getDocs(collection(db, "sales"));
+      const salesData = querySnapshot.docs.map((doc) => ({
+        ...doc.data(),
+        id: doc.id,
+        saleDate: doc.data().saleDate.toDate(),
+        remainingPayments: doc.data().remainingPayments || doc.data().purchaseTerms,
+        paymentHistory: doc.data().paymentHistory || [],
+        paymentDates: doc.data().paymentDates ? doc.data().paymentDates.map((date) => date.toDate()) : [],
+      }));
+      const sortedSales = salesData.sort((a, b) => b.saleDate - a.saleDate);
+      setSales(sortedSales);
+    } catch (error) {
+      console.error("Error al obtener las ventas:", error);
+    }
   }, [setSales]);
 
-  const handlePayment = async (sale, paymentAmount = 0) => {
-    let updatedRemainingPayments;
-    let newPaymentHistory;
+  useEffect(() => {
+    fetchSales();
+  }, [fetchSales]);
 
-    if (sale.purchaseTerms === -1) {
-      // Cuotas flexibles: el cliente paga cualquier cantidad
-      const newTotalSalePrice = sale.totalSalePrice - paymentAmount; // Resta del total
-      updatedRemainingPayments = newTotalSalePrice > 0 ? newTotalSalePrice : 0;
+  const handlePayment = useCallback(
+    async (sale, paymentAmount = 0) => {
+      let updatedRemainingPayments;
+      let newPaymentHistory;
 
-      // Actualizar el historial de pagos con el nuevo pago
-      newPaymentHistory = sale.paymentHistory ? [...sale.paymentHistory, paymentAmount] : [paymentAmount];
-    } else {
-      // Cuotas fijas
-      updatedRemainingPayments = sale.remainingPayments - 1;
-      newPaymentHistory = sale.paymentHistory ? [...sale.paymentHistory, sale.termAmount] : [sale.termAmount];
-    }
+      if (sale.purchaseTerms === -1) {
+        const newTotalSalePrice = sale.totalSalePrice - paymentAmount;
+        updatedRemainingPayments = newTotalSalePrice > 0 ? newTotalSalePrice : 0;
+        newPaymentHistory = sale.paymentHistory ? [...sale.paymentHistory, paymentAmount] : [paymentAmount];
+      } else {
+        updatedRemainingPayments = sale.remainingPayments - 1;
+        newPaymentHistory = sale.paymentHistory ? [...sale.paymentHistory, sale.termAmount] : [sale.termAmount];
+      }
 
-    const currentPaymentDate = new Date();
+      const currentPaymentDate = new Date();
 
+      try {
+        const saleRef = doc(db, "sales", sale.id);
+        await updateDoc(saleRef, {
+          remainingPayments: updatedRemainingPayments,
+          paymentDates: [...sale.paymentDates, currentPaymentDate],
+          paymentHistory: newPaymentHistory,
+        });
+
+        setSales((prevSales) =>
+          prevSales.map((s) =>
+            s.id === sale.id
+              ? {
+                  ...s,
+                  remainingPayments: updatedRemainingPayments,
+                  paymentDates: [...s.paymentDates, currentPaymentDate],
+                  paymentHistory: newPaymentHistory,
+                }
+              : s
+          )
+        );
+
+        toast.current.show({
+          severity: "success",
+          summary: "Éxito",
+          detail:
+            sale.purchaseTerms === -1
+              ? `Pago de ${paymentAmount} registrado. Restante: ${updatedRemainingPayments}`
+              : `Pago de cuota registrado. Quedan ${updatedRemainingPayments} cuotas`,
+          life: 3000,
+        });
+
+        const whatsappLink = createWhatsAppLink(sale, updatedRemainingPayments);
+        window.open(whatsappLink, "_blank");
+      } catch (error) {
+        console.error("Error al registrar el pago:", error);
+        toast.current.show({ severity: "error", summary: "Error", detail: "Error al registrar el pago", life: 3000 });
+      }
+    },
+    [setSales]
+  );
+
+  const deleteSale = useCallback(
+    async (sale) => {
+      try {
+        await deleteDoc(doc(db, "sales", sale.id));
+        setSales((prevSales) => prevSales.filter((s) => s.id !== sale.id));
+        setDialogState((prevState) => ({ ...prevState, isDialogVisible: false }));
+
+        toast.current.show({ severity: "success", summary: "Éxito", detail: "Venta eliminada correctamente", life: 3000 });
+      } catch (error) {
+        console.error("Error al eliminar la venta:", error);
+      }
+    },
+    [setSales]
+  );
+
+  const toggleDialog = useCallback((dialogType, sale = null) => {
+    setDialogState((prevState) => ({
+      ...prevState,
+      [dialogType]: !prevState[dialogType],
+      selectedSale: sale || prevState.selectedSale,
+    }));
+  }, []);
+
+  const updateSaleName = useCallback(async () => {
     try {
-      const saleRef = doc(db, "sales", sale.id);
-      await updateDoc(saleRef, {
-        remainingPayments: updatedRemainingPayments,
-        paymentDates: [...sale.paymentDates, currentPaymentDate],
-        paymentHistory: newPaymentHistory, // Guardar el historial de pagos actualizado
-      });
+      const saleRef = doc(db, "sales", dialogState.selectedSale.id);
+      await updateDoc(saleRef, { buyerName: newSaleName });
 
-      // Actualizar el contexto global con las ventas actualizadas
-      setSales(
-        sales.map((s) =>
-          s.id === sale.id
-            ? {
-                ...s,
-                remainingPayments: updatedRemainingPayments,
-                paymentDates: [...s.paymentDates, currentPaymentDate],
-                paymentHistory: newPaymentHistory, // Actualizar el historial localmente
-              }
-            : s
-        )
-      );
-
-      toast.current.show({
-        severity: "success",
-        summary: "Éxito",
-        detail:
-          sale.purchaseTerms === -1
-            ? `Pago de ${paymentAmount} registrado. Restante: ${updatedRemainingPayments}`
-            : `Pago de cuota registrado. Quedan ${updatedRemainingPayments} cuotas`,
-        life: 3000,
-      });
-
-      const whatsappLink = createWhatsAppLink(sale, updatedRemainingPayments);
-      window.open(whatsappLink, "_blank");
-    } catch (error) {
-      console.error("Error al registrar el pago:", error);
-      toast.current.show({ severity: "error", summary: "Error", detail: "Error al registrar el pago", life: 3000 });
-    }
-  };
-
-  const deleteSale = async (sale) => {
-    try {
-      await deleteDoc(doc(db, "sales", sale.id));
-      setSales(sales.filter((s) => s.id !== sale.id));
-      setDialogVisible(false);
-
-      toast.current.show({ severity: "success", summary: "Éxito", detail: "Venta eliminada correctamente", life: 3000 });
-    } catch (error) {
-      console.error("Error al eliminar la venta:", error);
-    }
-  };
-
-  const confirmDeleteSale = (sale) => {
-    setSelectedSale(sale);
-    setDialogVisible(true);
-  };
-
-  const handleEditSale = (sale) => {
-    setSelectedSale(sale);
-    setNewSaleName(sale.buyerName);
-    setEditDialogVisible(true);
-  };
-
-  const updateSaleName = async () => {
-    try {
-      const saleRef = doc(db, "sales", selectedSale.id);
-      await updateDoc(saleRef, {
-        buyerName: newSaleName,
-      });
-
-      setSales(sales.map((s) => (s.id === selectedSale.id ? { ...s, buyerName: newSaleName } : s)));
+      setSales((prevSales) => prevSales.map((s) => (s.id === dialogState.selectedSale.id ? { ...s, buyerName: newSaleName } : s)));
 
       toast.current.show({
         severity: "success",
@@ -146,7 +144,7 @@ const Sales = () => {
         life: 3000,
       });
 
-      setEditDialogVisible(false);
+      toggleDialog("isEditDialogVisible");
     } catch (error) {
       console.error("Error al actualizar el nombre del comprador:", error);
       toast.current.show({
@@ -156,73 +154,50 @@ const Sales = () => {
         life: 3000,
       });
     }
-  };
+  }, [dialogState.selectedSale, newSaleName, setSales, toggleDialog]);
 
-  const paymentButton = (sale) => (
-    <Button
-      label="Pago"
-      icon="pi pi-check"
-      className="p-button-success mr-2"
-      disabled={sale.remainingPayments <= 0 && sale.purchaseTerms !== -1}
-      onClick={() => {
-        setSelectedSale(sale);
-        if (sale.purchaseTerms === -1) {
-          setPaymentDialogVisible(true);
-        } else {
-          handlePayment(sale);
-        }
-      }}
-    />
+  const paymentDatesTemplate = useCallback(
+    (rowData) => (
+      <>
+        {rowData.paymentDates.map((date, index) => (
+          <p key={index}>{new Date(date).toLocaleDateString()}</p>
+        ))}
+      </>
+    ),
+    []
   );
 
-  const deleteButton = (sale) => (
-    <Button label="Eliminar" icon="pi pi-trash" className="p-button-danger mt-1" onClick={() => confirmDeleteSale(sale)} />
+  const remainingPaymentsTemplate = useMemo(
+    () => (rowData) => rowData.purchaseTerms === -1 ? "N/A" : `${rowData.remainingPayments}/${rowData.purchaseTerms}`,
+    []
   );
 
-  const editButton = (sale) => (
-    <Button label="Editar" icon="pi pi-pencil" className="p-button-warning mt-1" onClick={() => handleEditSale(sale)} />
+  const paidAmountTemplate = useMemo(
+    () => (rowData) => {
+      if (rowData.purchaseTerms === -1) {
+        const totalPaid = rowData.paymentHistory.reduce((acc, payment) => acc + parseFloat(payment), 0);
+        return `$${totalPaid.toFixed(2)}`;
+      }
+      return "N/A";
+    },
+    []
   );
 
-  const actionBodyTemplate = (sale) => (
-    <>
-      {paymentButton(sale)}
-      {editButton(sale)}
-      {deleteButton(sale)}
-    </>
-  );
+  const saleDateTemplate = useCallback((rowData) => new Date(rowData.saleDate).toLocaleDateString(), []);
 
-  const paymentDatesTemplate = (rowData) => (
-    <>
-      {rowData.paymentDates.map((date, index) => (
-        <p key={index}>{new Date(date).toLocaleDateString()}</p>
-      ))}
-    </>
-  );
+  const salePriceTemplate = useCallback((rowData) => `$${parseFloat(rowData.totalSalePrice).toFixed(2)}`, []);
 
-  const saleDateTemplate = (rowData) => new Date(rowData.saleDate).toLocaleDateString();
-  const salePriceTemplate = (rowData) => `$${parseFloat(rowData.totalSalePrice).toFixed(2)}`;
-
-  const purchaseTermsTemplate = (rowData) => {
-    return rowData.purchaseTerms === -1 ? "N/A" : `${rowData.remainingPayments}/${rowData.purchaseTerms}`;
-  };
-
-  const remainingAmountTemplate = (rowData) => {
-    const totalSalePrice = parseFloat(rowData.totalSalePrice) || 0;
-    const totalPaid = rowData.paymentHistory.reduce((acc, payment) => acc + parseFloat(payment), 0);
-    const remainingAmount = totalSalePrice - totalPaid;
-    return rowData.purchaseTerms === -1 ? `$${remainingAmount.toFixed(2)}` : null;
-  };
-
-  const onGlobalFilterChange = (e) => {
+  const onGlobalFilterChange = useCallback((e) => {
     const value = e.target.value;
-    let _filters = { ...filters };
-    _filters["global"].value = value;
-    setFilters(_filters);
+    setFilters((prevFilters) => ({
+      ...prevFilters,
+      global: { value },
+    }));
     setGlobalFilterValue(value);
-  };
+  }, []);
 
-  const renderHeader = () => {
-    return (
+  const renderHeader = useMemo(
+    () => (
       <div className="table-header">
         <span className="p-input-icon-right">
           <InputText
@@ -233,21 +208,54 @@ const Sales = () => {
           />
         </span>
       </div>
-    );
-  };
+    ),
+    [globalFilterValue, onGlobalFilterChange]
+  );
 
-  const paymentDialogFooter = (
-    <>
-      <Button label="Cancelar" icon="pi pi-times" onClick={() => setPaymentDialogVisible(false)} className="p-button-text" />
-      <Button
-        label="Pagar"
-        icon="pi pi-check"
-        onClick={() => {
-          handlePayment(selectedSale, paymentAmount);
-          setPaymentDialogVisible(false);
-        }}
-      />
-    </>
+  const paymentDialogFooter = useMemo(
+    () => (
+      <>
+        <Button label="Cancelar" icon="pi pi-times" onClick={() => toggleDialog("isPaymentDialogVisible")} className="p-button-text" />
+        <Button
+          label="Pagar"
+          icon="pi pi-check"
+          onClick={() => {
+            handlePayment(dialogState.selectedSale, paymentAmount);
+            toggleDialog("isPaymentDialogVisible");
+          }}
+        />
+      </>
+    ),
+    [handlePayment, paymentAmount, dialogState.selectedSale, toggleDialog]
+  );
+
+  const actionBodyTemplate = useCallback(
+    (sale) => (
+      <>
+        <Button
+          label="Pago"
+          icon="pi pi-check"
+          className="p-button-success mr-2"
+          disabled={sale.remainingPayments <= 0 && sale.purchaseTerms !== -1}
+          onClick={() => {
+            toggleDialog(sale.purchaseTerms === -1 ? "isPaymentDialogVisible" : "isPaymentDialogVisible", sale);
+          }}
+        />
+        <Button
+          label="Editar"
+          icon="pi pi-pencil"
+          className="p-button-warning mt-1"
+          onClick={() => toggleDialog("isEditDialogVisible", sale)}
+        />
+        <Button
+          label="Eliminar"
+          icon="pi pi-trash"
+          className="p-button-danger mt-1"
+          onClick={() => toggleDialog("isDialogVisible", sale)}
+        />
+      </>
+    ),
+    [toggleDialog]
   );
 
   return (
@@ -255,14 +263,14 @@ const Sales = () => {
       <Toast ref={toast} />
 
       <Dialog
-        visible={isEditDialogVisible}
+        visible={dialogState.isEditDialogVisible}
         style={{ width: "450px" }}
         header="Editar Venta"
         modal
-        onHide={() => setEditDialogVisible(false)}
+        onHide={() => toggleDialog("isEditDialogVisible")}
         footer={
           <>
-            <Button label="Cancelar" icon="pi pi-times" onClick={() => setEditDialogVisible(false)} className="p-button-text" />
+            <Button label="Cancelar" icon="pi pi-times" onClick={() => toggleDialog("isEditDialogVisible")} className="p-button-text" />
             <Button label="Guardar" icon="pi pi-check" onClick={updateSaleName} />
           </>
         }
@@ -274,23 +282,23 @@ const Sales = () => {
       </Dialog>
 
       <Dialog
-        visible={isDialogVisible}
+        visible={dialogState.isDialogVisible}
         style={{ width: "350px" }}
         header="Confirmar eliminación"
         modal
         footer={
           <div>
-            <Button label="No" icon="pi pi-times" onClick={() => setDialogVisible(false)} className="p-button-text" />
-            <Button label="Sí" icon="pi pi-check" onClick={() => deleteSale(selectedSale)} autoFocus />
+            <Button label="No" icon="pi pi-times" onClick={() => toggleDialog("isDialogVisible")} className="p-button-text" />
+            <Button label="Sí" icon="pi pi-check" onClick={() => deleteSale(dialogState.selectedSale)} autoFocus />
           </div>
         }
-        onHide={() => setDialogVisible(false)}
+        onHide={() => toggleDialog("isDialogVisible")}
       >
         <div className="confirmation-content">
           <i className="pi pi-exclamation-triangle p-mr-3" style={{ fontSize: "2rem" }} />
-          {selectedSale && (
+          {dialogState.selectedSale && (
             <span>
-              ¿Estás seguro de que deseas eliminar la venta de <b>{selectedSale.items}</b>?
+              ¿Estás seguro de que deseas eliminar la venta de <b>{dialogState.selectedSale.items}</b>?
             </span>
           )}
         </div>
@@ -298,10 +306,10 @@ const Sales = () => {
 
       <Dialog
         header="Pagar cuota flexible"
-        visible={isPaymentDialogVisible}
+        visible={dialogState.isPaymentDialogVisible}
         style={{ width: "450px" }}
         footer={paymentDialogFooter}
-        onHide={() => setPaymentDialogVisible(false)}
+        onHide={() => toggleDialog("isPaymentDialogVisible")}
       >
         <div className="p-field">
           <label htmlFor="paymentAmount">Monto del pago</label>
@@ -329,20 +337,14 @@ const Sales = () => {
               paginator
               filters={filters}
               globalFilterFields={["buyerName", "items"]}
-              header={renderHeader()}
+              header={renderHeader}
             >
               <Column field="items" header="Artículos"></Column>
               <Column field="buyerName" header="Cliente" sortable></Column>
               <Column field="totalPurchasePrice" header="P.Compra" body={salePriceTemplate} />
               <Column field="totalSalePrice" header="P.Venta" body={salePriceTemplate} />
-              <Column field="remainingPayments" header="Cuotas" body={purchaseTermsTemplate} />
-              {/* Mostrar monto restante solo si es cuota flexible */}
-              <Column
-                field="remainingPayments"
-                header="Monto Restante"
-                body={remainingAmountTemplate}
-                style={{ display: sales.some((sale) => sale.purchaseTerms === -1) ? "table-cell" : "none" }}
-              />
+              <Column field="remainingPayments" header="Cuotas Restantes" body={remainingPaymentsTemplate} />
+              <Column field="paidAmount" header="Monto Pagado" body={paidAmountTemplate} />
               <Column field="saleDate" header="Fecha de Ingreso" body={saleDateTemplate} />
               <Column field="paymentDates" header="Fechas de Pago" body={paymentDatesTemplate} sortable />
               <Column body={actionBodyTemplate} header="Acciones"></Column>
