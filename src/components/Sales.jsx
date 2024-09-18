@@ -10,10 +10,10 @@ import { Toast } from "primereact/toast";
 import { Dialog } from "primereact/dialog";
 import { InputText } from "primereact/inputtext";
 import { createWhatsAppLink } from "../utils/whatsappUtils";
-import { useSales } from "../context/SalesContext"; // Importa el contexto de ventas
+import { useSales } from "../context/SalesContext";
 
 const Sales = () => {
-  const { sales, setSales } = useSales(); // Utiliza el contexto de ventas
+  const { sales, setSales } = useSales();
   const [selectedSale, setSelectedSale] = useState(null);
   const [isDialogVisible, setDialogVisible] = useState(false);
   const [isEditDialogVisible, setEditDialogVisible] = useState(false);
