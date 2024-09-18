@@ -24,8 +24,9 @@ const Sales = () => {
   const [paymentAmount, setPaymentAmount] = useState(0);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState({
-    global: { value: null, matchMode: "contains" },
+    global: { value: null, matchMode: "contains" }, // Filtro global
   });
+
   const toast = useRef(null);
 
   const fetchSales = useCallback(async () => {
@@ -187,14 +188,17 @@ const Sales = () => {
 
   const salePriceTemplate = useCallback((rowData) => `$${parseFloat(rowData.totalSalePrice).toFixed(2)}`, []);
 
-  const onGlobalFilterChange = useCallback((e) => {
-    const value = e.target.value;
-    setFilters((prevFilters) => ({
-      ...prevFilters,
-      global: { value },
-    }));
-    setGlobalFilterValue(value);
-  }, []);
+  const onGlobalFilterChange = useCallback(
+    (e) => {
+      const value = e.target.value;
+      setFilters({
+        ...filters,
+        global: { value, matchMode: "contains" },
+      });
+      setGlobalFilterValue(value);
+    },
+    [filters]
+  );
 
   const renderHeader = useMemo(
     () => (
