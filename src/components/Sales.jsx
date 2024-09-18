@@ -10,9 +10,10 @@ import { Toast } from "primereact/toast";
 import { Dialog } from "primereact/dialog";
 import { InputText } from "primereact/inputtext";
 import { createWhatsAppLink } from "../utils/whatsappUtils";
+import { useSales } from "../context/SalesContext"; // Importa el contexto de ventas
 
 const Sales = () => {
-  const [sales, setSales] = useState([]);
+  const { sales, setSales } = useSales(); // Utiliza el contexto de ventas
   const [selectedSale, setSelectedSale] = useState(null);
   const [isDialogVisible, setDialogVisible] = useState(false);
   const [isEditDialogVisible, setEditDialogVisible] = useState(false);
@@ -34,28 +35,34 @@ const Sales = () => {
           id: doc.id,
           saleDate: doc.data().saleDate.toDate(),
           remainingPayments: doc.data().remainingPayments || doc.data().purchaseTerms,
+          paymentHistory: doc.data().paymentHistory || [], // Inicializar paymentHistory como un array vacío si no existe
           paymentDates: doc.data().paymentDates ? doc.data().paymentDates.map((date) => date.toDate()) : [],
         }));
         const sortedSales = salesData.sort((a, b) => b.saleDate - a.saleDate);
-        setSales(sortedSales);
+        setSales(sortedSales); // Actualizar el contexto global con las ventas
       } catch (error) {
         console.error("Error al obtener las ventas:", error);
       }
     };
 
     fetchSales();
-  }, []);
+  }, [setSales]);
 
   const handlePayment = async (sale, paymentAmount = 0) => {
     let updatedRemainingPayments;
+    let newPaymentHistory;
 
     if (sale.purchaseTerms === -1) {
       // Cuotas flexibles: el cliente paga cualquier cantidad
       const newTotalSalePrice = sale.totalSalePrice - paymentAmount; // Resta del total
       updatedRemainingPayments = newTotalSalePrice > 0 ? newTotalSalePrice : 0;
+
+      // Actualizar el historial de pagos con el nuevo pago
+      newPaymentHistory = sale.paymentHistory ? [...sale.paymentHistory, paymentAmount] : [paymentAmount];
     } else {
       // Cuotas fijas
       updatedRemainingPayments = sale.remainingPayments - 1;
+      newPaymentHistory = sale.paymentHistory ? [...sale.paymentHistory, sale.termAmount] : [sale.termAmount];
     }
 
     const currentPaymentDate = new Date();
@@ -65,8 +72,10 @@ const Sales = () => {
       await updateDoc(saleRef, {
         remainingPayments: updatedRemainingPayments,
         paymentDates: [...sale.paymentDates, currentPaymentDate],
+        paymentHistory: newPaymentHistory, // Guardar el historial de pagos actualizado
       });
 
+      // Actualizar el contexto global con las ventas actualizadas
       setSales(
         sales.map((s) =>
           s.id === sale.id
@@ -74,6 +83,7 @@ const Sales = () => {
                 ...s,
                 remainingPayments: updatedRemainingPayments,
                 paymentDates: [...s.paymentDates, currentPaymentDate],
+                paymentHistory: newPaymentHistory, // Actualizar el historial localmente
               }
             : s
         )
@@ -192,14 +202,15 @@ const Sales = () => {
   const saleDateTemplate = (rowData) => new Date(rowData.saleDate).toLocaleDateString();
   const salePriceTemplate = (rowData) => `$${parseFloat(rowData.totalSalePrice).toFixed(2)}`;
 
-  // Columna de Cuotas, muestra N/A para cuotas flexibles
   const purchaseTermsTemplate = (rowData) => {
     return rowData.purchaseTerms === -1 ? "N/A" : `${rowData.remainingPayments}/${rowData.purchaseTerms}`;
   };
 
-  // Columna para mostrar el monto restante solo para cuotas flexibles
   const remainingAmountTemplate = (rowData) => {
-    return rowData.purchaseTerms === -1 ? `$${parseFloat(rowData.remainingPayments).toFixed(2)}` : null;
+    const totalSalePrice = parseFloat(rowData.totalSalePrice) || 0;
+    const totalPaid = rowData.paymentHistory.reduce((acc, payment) => acc + parseFloat(payment), 0);
+    const remainingAmount = totalSalePrice - totalPaid;
+    return rowData.purchaseTerms === -1 ? `$${remainingAmount.toFixed(2)}` : null;
   };
 
   const onGlobalFilterChange = (e) => {

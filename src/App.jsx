@@ -7,7 +7,8 @@ import Profits from "./components/Profits";
 import Sales from "./components/Sales";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider, useAuth } from "./context/AuthContext";
-import NavigationMenu from "./components/NavigationMenu"; // Componente de navegación
+import { SalesProvider } from "./context/SalesContext";
+import NavigationMenu from "./components/NavigationMenu";
 import "primereact/resources/themes/saga-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
@@ -16,9 +17,12 @@ import "primeflex/primeflex.css";
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <MainApp />
-      </Router>
+      <SalesProvider>
+        {" "}
+        <Router>
+          <MainApp />
+        </Router>
+      </SalesProvider>
     </AuthProvider>
   );
 }
