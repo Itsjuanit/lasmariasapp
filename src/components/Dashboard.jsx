@@ -9,7 +9,7 @@ import { Toast } from "primereact/toast";
 import { Toolbar } from "primereact/toolbar";
 import { ConfirmDialog, confirmDialog } from "primereact/confirmdialog";
 import { InputText } from "primereact/inputtext";
-import ConfirmSaleDialog from "./ConfirmSaleDialog";
+import ConfirmSaleDialog from "./Dialog/ConfirmSaleDialog";
 
 const Dashboard = () => {
   const [joyas, setJoyas] = useState([]);
