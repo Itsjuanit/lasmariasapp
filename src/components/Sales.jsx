@@ -7,10 +7,12 @@ import { Card } from "primereact/card";
 import { Button } from "primereact/button";
 import { Divider } from "primereact/divider";
 import { Toast } from "primereact/toast";
-import { Dialog } from "primereact/dialog";
 import { InputText } from "primereact/inputtext";
 import { createWhatsAppLink } from "../utils/whatsappUtils";
 import { useSales } from "../context/SalesContext";
+import EditSaleDialog from "./Dialog/EditSaleDialog";
+import DeleteSaleDialog from "./Dialog/DeleteSaleDialog";
+import PaymentDialog from "./Dialog/PaymentDialog";
 
 const Sales = () => {
   const { sales, setSales } = useSales();
@@ -216,23 +218,6 @@ const Sales = () => {
     [globalFilterValue, onGlobalFilterChange]
   );
 
-  const paymentDialogFooter = useMemo(
-    () => (
-      <>
-        <Button label="Cancelar" icon="pi pi-times" onClick={() => toggleDialog("isPaymentDialogVisible")} className="p-button-text" />
-        <Button
-          label="Pagar"
-          icon="pi pi-check"
-          onClick={() => {
-            handlePayment(dialogState.selectedSale, paymentAmount);
-            toggleDialog("isPaymentDialogVisible");
-          }}
-        />
-      </>
-    ),
-    [handlePayment, paymentAmount, dialogState.selectedSale, toggleDialog]
-  );
-
   const actionBodyTemplate = useCallback(
     (sale) => (
       <>
@@ -242,7 +227,7 @@ const Sales = () => {
           className="p-button-success mr-2"
           disabled={sale.remainingPayments <= 0 && sale.purchaseTerms !== -1}
           onClick={() => {
-            toggleDialog(sale.purchaseTerms === -1 ? "isPaymentDialogVisible" : "isPaymentDialogVisible", sale);
+            toggleDialog("isPaymentDialogVisible", sale);
           }}
         />
         <Button
@@ -266,65 +251,30 @@ const Sales = () => {
     <div className="container mx-auto mt-6">
       <Toast ref={toast} />
 
-      <Dialog
+      <EditSaleDialog
         visible={dialogState.isEditDialogVisible}
-        style={{ width: "450px" }}
-        header="Editar Venta"
-        modal
         onHide={() => toggleDialog("isEditDialogVisible")}
-        footer={
-          <>
-            <Button label="Cancelar" icon="pi pi-times" onClick={() => toggleDialog("isEditDialogVisible")} className="p-button-text" />
-            <Button label="Guardar" icon="pi pi-check" onClick={updateSaleName} />
-          </>
-        }
-      >
-        <div className="p-field">
-          <label htmlFor="saleName">Nombre del comprador</label>
-          <InputText id="saleName" value={newSaleName} onChange={(e) => setNewSaleName(e.target.value)} style={{ width: "100%" }} />
-        </div>
-      </Dialog>
+        selectedSale={dialogState.selectedSale}
+        newSaleName={newSaleName}
+        setNewSaleName={setNewSaleName}
+        updateSaleName={updateSaleName}
+      />
 
-      <Dialog
+      <DeleteSaleDialog
         visible={dialogState.isDialogVisible}
-        style={{ width: "350px" }}
-        header="Confirmar eliminación"
-        modal
-        footer={
-          <div>
-            <Button label="No" icon="pi pi-times" onClick={() => toggleDialog("isDialogVisible")} className="p-button-text" />
-            <Button label="Sí" icon="pi pi-check" onClick={() => deleteSale(dialogState.selectedSale)} autoFocus />
-          </div>
-        }
         onHide={() => toggleDialog("isDialogVisible")}
-      >
-        <div className="confirmation-content">
-          <i className="pi pi-exclamation-triangle p-mr-3" style={{ fontSize: "2rem" }} />
-          {dialogState.selectedSale && (
-            <span>
-              ¿Estás seguro de que deseas eliminar la venta de <b>{dialogState.selectedSale.items}</b>?
-            </span>
-          )}
-        </div>
-      </Dialog>
+        selectedSale={dialogState.selectedSale}
+        deleteSale={deleteSale}
+      />
 
-      <Dialog
-        header="Pagar cuota flexible"
+      <PaymentDialog
         visible={dialogState.isPaymentDialogVisible}
-        style={{ width: "450px" }}
-        footer={paymentDialogFooter}
         onHide={() => toggleDialog("isPaymentDialogVisible")}
-      >
-        <div className="p-field">
-          <label htmlFor="paymentAmount">Monto del pago</label>
-          <InputText
-            id="paymentAmount"
-            value={paymentAmount}
-            onChange={(e) => setPaymentAmount(parseFloat(e.target.value))}
-            placeholder="Ingresa el monto del pago"
-          />
-        </div>
-      </Dialog>
+        selectedSale={dialogState.selectedSale}
+        paymentAmount={paymentAmount}
+        setPaymentAmount={setPaymentAmount}
+        handlePayment={handlePayment}
+      />
 
       <div className="p-grid">
         <div className="p-col-12">
