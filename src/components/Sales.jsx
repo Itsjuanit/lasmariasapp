@@ -8,6 +8,7 @@ import { Button } from "primereact/button";
 import { Divider } from "primereact/divider";
 import { Toast } from "primereact/toast";
 import { InputText } from "primereact/inputtext";
+import { TabView, TabPanel } from "primereact/tabview";
 import { createWhatsAppLink } from "../utils/whatsappUtils";
 import { useSales } from "../context/SalesContext";
 import EditSaleDialog from "./Dialog/EditSaleDialog";
@@ -281,28 +282,86 @@ const Sales = () => {
           <Card>
             <h2 className="text-center">Ventas</h2>
             <Divider />
+            <TabView>
+              <TabPanel header="Todas las ventas">
+                <DataTable
+                  value={sales}
+                  paginator
+                  rows={10}
+                  responsiveLayout="scroll"
+                  globalFilterFields={["buyerName", "items"]}
+                  header={renderHeader}
+                  filters={filters}
+                >
+                  <Column field="items" header="Artículos"></Column>
+                  <Column field="buyerName" header="Cliente" sortable></Column>
+                  <Column field="totalPurchasePrice" header="P.Compra" body={salePriceTemplate} />
+                  <Column field="totalSalePrice" header="P.Venta" body={salePriceTemplate} />
+                  <Column field="remainingPayments" header="Cuotas Restantes" body={remainingPaymentsTemplate} />
+                  <Column field="paidAmount" header="Monto Pagado" body={paidAmountTemplate} />
+                  <Column field="saleDate" header="Fecha de Ingreso" body={saleDateTemplate} />
+                  <Column field="paymentDates" header="Fechas de Pago" body={paymentDatesTemplate} sortable />
+                  <Column body={actionBodyTemplate} header="Acciones"></Column>
+                </DataTable>
+              </TabPanel>
 
-            <DataTable
-              value={sales}
-              responsiveLayout="scroll"
-              style={{ marginTop: "20px" }}
-              rowsPerPageOptions={[5, 10, 25, 50]}
-              rows={10}
-              paginator
-              filters={filters}
-              globalFilterFields={["buyerName", "items"]}
-              header={renderHeader}
-            >
-              <Column field="items" header="Artículos"></Column>
-              <Column field="buyerName" header="Cliente" sortable></Column>
-              <Column field="totalPurchasePrice" header="P.Compra" body={salePriceTemplate} />
-              <Column field="totalSalePrice" header="P.Venta" body={salePriceTemplate} />
-              <Column field="remainingPayments" header="Cuotas Restantes" body={remainingPaymentsTemplate} />
-              <Column field="paidAmount" header="Monto Pagado" body={paidAmountTemplate} />
-              <Column field="saleDate" header="Fecha de Ingreso" body={saleDateTemplate} />
-              <Column field="paymentDates" header="Fechas de Pago" body={paymentDatesTemplate} sortable />
-              <Column body={actionBodyTemplate} header="Acciones"></Column>
-            </DataTable>
+              <TabPanel header="Ventas finalizadas">
+                <DataTable
+                  value={sales.filter((sale) => {
+                    if (sale.purchaseTerms === -1) {
+                      // Ventas flexibles
+                      const totalPaid = sale.paymentHistory.reduce((acc, payment) => acc + parseFloat(payment), 0);
+                      return totalPaid >= sale.totalSalePrice; // Si ya se ha pagado el total
+                    }
+                    // Ventas con cuotas regulares (consideramos finalizado si remainingPayments es 0)
+                    return sale.remainingPayments === 0 || sale.remainingPayments === sale.purchaseTerms;
+                  })}
+                  paginator
+                  rows={10}
+                  responsiveLayout="scroll"
+                  globalFilterFields={["buyerName", "items"]}
+                  header={renderHeader}
+                  filters={filters}
+                >
+                  <Column field="items" header="Artículos"></Column>
+                  <Column field="buyerName" header="Cliente" sortable></Column>
+                  <Column field="totalPurchasePrice" header="P.Compra" body={salePriceTemplate} />
+                  <Column field="totalSalePrice" header="P.Venta" body={salePriceTemplate} />
+                  <Column field="remainingPayments" header="Cuotas Restantes" body={remainingPaymentsTemplate} />
+                  <Column field="paidAmount" header="Monto Pagado" body={paidAmountTemplate} />
+                  <Column field="saleDate" header="Fecha de Ingreso" body={saleDateTemplate} />
+                  <Column field="paymentDates" header="Fechas de Pago" body={paymentDatesTemplate} sortable />
+                </DataTable>
+              </TabPanel>
+
+              <TabPanel header="Pendiente de pago">
+                <DataTable
+                  value={sales.filter((sale) => {
+                    if (sale.purchaseTerms === -1) {
+                      const totalPaid = sale.paymentHistory.reduce((acc, payment) => acc + parseFloat(payment), 0);
+                      return totalPaid < sale.totalSalePrice;
+                    }
+                    return sale.remainingPayments > 0;
+                  })}
+                  paginator
+                  rows={10}
+                  responsiveLayout="scroll"
+                  globalFilterFields={["buyerName", "items"]}
+                  header={renderHeader}
+                  filters={filters}
+                >
+                  <Column field="items" header="Artículos"></Column>
+                  <Column field="buyerName" header="Cliente" sortable></Column>
+                  <Column field="totalPurchasePrice" header="P.Compra" body={salePriceTemplate} />
+                  <Column field="totalSalePrice" header="P.Venta" body={salePriceTemplate} />
+                  <Column field="remainingPayments" header="Cuotas Restantes" body={remainingPaymentsTemplate} />
+                  <Column field="paidAmount" header="Monto Pagado" body={paidAmountTemplate} />
+                  <Column field="saleDate" header="Fecha de Ingreso" body={saleDateTemplate} />
+                  <Column field="paymentDates" header="Fechas de Pago" body={paymentDatesTemplate} sortable />
+                  <Column body={actionBodyTemplate} header="Acciones"></Column>
+                </DataTable>
+              </TabPanel>
+            </TabView>
           </Card>
         </div>
       </div>
